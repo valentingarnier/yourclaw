@@ -1,0 +1,453 @@
+import hashlib
+import hmac
+import logging
+from base64 import b64encode
+from datetime import date, datetime
+
+import httpx
+import stripe
+from fastapi import APIRouter, HTTPException, Request, Response
+
+from app.config import settings
+from app.database import db
+from app.services.encryption import decrypt
+
+logger = logging.getLogger("yourclaw.webhooks")
+
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+stripe.api_key = settings.stripe_secret_key
+
+
+def validate_twilio_signature(request_url: str, params: dict, signature: str) -> bool:
+    """Validate Twilio webhook signature using HMAC-SHA1."""
+    if settings.mock_twilio or settings.skip_twilio_signature:
+        return True
+
+    # Build the string to sign: URL + sorted params (key+value concatenated, no encoding)
+    sorted_params = "".join(f"{k}{v}" for k, v in sorted(params.items()))
+    data = request_url + sorted_params
+
+    # Compute expected signature
+    expected = b64encode(
+        hmac.new(
+            settings.twilio_auth_token.encode(),
+            data.encode(),
+            hashlib.sha1,
+        ).digest()
+    ).decode()
+
+    logger.info(f"  Data to sign: {data[:100]}...")
+    logger.info(f"  Expected sig: {expected}")
+    logger.info(f"  Received sig: {signature}")
+
+    return hmac.compare_digest(expected, signature)
+
+
+@router.post("/twilio/whatsapp")
+async def twilio_whatsapp(request: Request) -> Response:
+    """Handle inbound WhatsApp messages from Twilio.
+
+    Validates signature, routes to user's Openclaw container, sends reply.
+    """
+    form = await request.form()
+    params = dict(form)
+
+    # Validate Twilio signature
+    # Reconstruct URL using forwarded headers (for ngrok/proxies)
+    signature = request.headers.get("X-Twilio-Signature", "")
+    proto = request.headers.get("X-Forwarded-Proto", request.url.scheme)
+    host = request.headers.get("X-Forwarded-Host", request.headers.get("Host", request.url.netloc))
+    request_url = f"{proto}://{host}{request.url.path}"
+
+    logger.info(f"Twilio signature validation:")
+    logger.info(f"  Proto: {proto}, Host: {host}")
+    logger.info(f"  Reconstructed URL: {request_url}")
+    logger.info(f"  Signature: {signature}")
+    logger.info(f"  Params: {list(params.keys())}")
+
+    if not validate_twilio_signature(request_url, params, signature):
+        logger.warning(f"Signature validation failed for URL: {request_url}")
+        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+    # Parse message
+    from_number = params.get("From", "").replace("whatsapp:", "")
+    to_number = params.get("To", "")  # The Twilio number user messaged (use as reply sender)
+    body = params.get("Body", "")
+    message_sid = params.get("MessageSid", "")
+
+    if not from_number or not body:
+        return Response(content="<Response></Response>", media_type="application/xml")
+
+    logger.info(f"Inbound WhatsApp from {from_number} to {to_number}: {body[:50]}...")
+
+    # Lookup user by phone
+    phone_row = await db.select("user_phones", filters={"phone_e164": from_number}, single=True)
+    if not phone_row:
+        logger.warning(f"Unknown phone number: {from_number}")
+        return Response(content="<Response></Response>", media_type="application/xml")
+
+    user_id = phone_row["user_id"]
+
+    # Check if using sandbox (sandbox requires TwiML response, not REST API)
+    is_sandbox = "+14155238886" in to_number
+
+    async def reply_message(msg: str) -> Response:
+        """Send reply via TwiML (sandbox) or REST API (production)."""
+        import html
+        if is_sandbox:
+            escaped = html.escape(msg)
+            return Response(content=f"<Response><Message>{escaped}</Message></Response>", media_type="application/xml")
+        else:
+            try:
+                await send_twilio_message(from_number, msg, to_number)
+            except Exception as e:
+                logger.error(f"Failed to send Twilio reply: {e}")
+            return Response(content="<Response></Response>", media_type="application/xml")
+
+    # Check assistant is ready
+    assistant = await db.select("assistants", filters={"user_id": user_id}, single=True)
+    if not assistant or assistant["status"] != "READY":
+        logger.warning(f"Assistant not ready for user {user_id}")
+        return await reply_message("Your assistant is not ready yet. Please wait.")
+
+    # Check rate limits
+    today = date.today().isoformat()
+    usage = await db.select("usage_daily", filters={"user_id": user_id, "date": today}, single=True)
+
+    if usage and usage["inbound_count"] >= settings.rate_limit_msg_per_day:
+        return await reply_message("Daily message limit reached. Try again tomorrow.")
+
+    # Check credits (if using shared key)
+    api_key = await db.select("api_keys", filters={"user_id": user_id, "provider": "ANTHROPIC"}, single=True)
+    if not api_key:
+        # Using shared key, check credits
+        credits = await db.select("user_credits", filters={"user_id": user_id}, single=True)
+        if credits and credits["used_cents"] >= credits["total_cents"]:
+            return await reply_message("API credits exhausted. Add your own API key or upgrade.")
+
+    # Record inbound message
+    await db.insert("messages", {
+        "user_id": user_id,
+        "direction": "INBOUND",
+        "body": body,
+        "twilio_sid": message_sid,
+    })
+
+    # Update usage
+    if usage:
+        await db.update(
+            "usage_daily",
+            {"inbound_count": usage["inbound_count"] + 1},
+            {"user_id": user_id, "date": today},
+        )
+    else:
+        await db.insert("usage_daily", {
+            "user_id": user_id,
+            "date": today,
+            "inbound_count": 1,
+            "outbound_count": 0,
+        })
+
+    # Call Openclaw container with conversation history
+    host_ip = settings.host_server_ip
+    port = assistant["port"]
+    gateway_token = decrypt(assistant["gateway_token_encrypted"])
+
+    # Get conversation history (includes the message we just inserted)
+    conversation = await get_conversation_history(user_id, limit=20)
+    logger.info(f"Conversation history: {len(conversation)} messages")
+
+    try:
+        reply = await call_openclaw(host_ip, port, gateway_token, conversation)
+    except Exception as e:
+        logger.error(f"Openclaw error: {e}")
+        reply = "Sorry, I encountered an error. Please try again."
+
+    # Record outbound message
+    await db.insert("messages", {
+        "user_id": user_id,
+        "direction": "OUTBOUND",
+        "body": reply,
+    })
+
+    # Update outbound usage
+    usage = await db.select("usage_daily", filters={"user_id": user_id, "date": today}, single=True)
+    await db.update(
+        "usage_daily",
+        {"outbound_count": usage["outbound_count"] + 1},
+        {"user_id": user_id, "date": today},
+    )
+
+    # Deduct credits (rough estimate: $0.003 per message pair)
+    if not api_key:
+        credits = await db.select("user_credits", filters={"user_id": user_id}, single=True)
+        if credits:
+            await db.update(
+                "user_credits",
+                {"used_cents": credits["used_cents"] + 1, "updated_at": datetime.utcnow().isoformat()},
+                {"user_id": user_id},
+            )
+
+    # Send reply (TwiML for sandbox, REST API for production)
+    logger.info(f"Sending reply via {'TwiML (sandbox)' if is_sandbox else 'REST API'}")
+    return await reply_message(reply)
+
+
+async def call_openclaw(host_ip: str, port: int, token: str, messages: list[dict]) -> str:
+    """Call Openclaw container's chat completions API.
+
+    Args:
+        host_ip: Host server IP
+        port: Container port
+        token: Gateway auth token
+        messages: Conversation history as list of {"role": "user"|"assistant", "content": "..."}
+    """
+    if settings.mock_containers:
+        return f"[Mock] I received: {messages[-1]['content'] if messages else 'nothing'}"
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(
+            f"http://{host_ip}:{port}/v1/chat/completions",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "model": "openclaw:main",
+                "messages": messages,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+
+async def get_conversation_history(user_id: str, limit: int = 20) -> list[dict]:
+    """Fetch recent messages for a user and format as conversation history.
+
+    Args:
+        user_id: User's UUID
+        limit: Max messages to retrieve (default 20 = 10 exchanges)
+
+    Returns:
+        List of messages formatted for chat completions API
+    """
+    # Fetch recent messages ordered by created_at
+    messages = await db.select(
+        "messages",
+        filters={"user_id": user_id},
+        order_by="created_at",
+        order_desc=True,
+        limit=limit,
+    )
+
+    if not messages:
+        return []
+
+    # Reverse to get chronological order (oldest first)
+    messages = list(reversed(messages))
+
+    # Convert to chat format
+    history = []
+    for msg in messages:
+        role = "user" if msg["direction"] == "INBOUND" else "assistant"
+        history.append({"role": role, "content": msg["body"]})
+
+    return history
+
+
+async def send_twilio_message(to_number: str, body: str, from_number: str | None = None) -> None:
+    """Send WhatsApp message via Twilio.
+
+    Args:
+        to_number: Recipient phone number (E.164 format, no whatsapp: prefix)
+        body: Message body
+        from_number: Sender (Twilio WhatsApp number with whatsapp: prefix).
+                     If None, uses TWILIO_WHATSAPP_NUMBER from env.
+    """
+    if settings.mock_twilio:
+        logger.info(f"[Mock Twilio] To {to_number}: {body[:100]}...")
+        return
+
+    from twilio.rest import Client
+
+    sender = from_number or settings.twilio_whatsapp_number
+    logger.info(f"Sending Twilio message: from={sender}, to=whatsapp:{to_number}")
+    logger.info(f"Message body length: {len(body)}, content: {body[:200]}...")
+
+    client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+    message = client.messages.create(
+        from_=sender,
+        to=f"whatsapp:{to_number}",
+        body=body,
+    )
+    logger.info(f"Twilio message sent: SID={message.sid}, status={message.status}")
+
+
+@router.post("/stripe")
+async def stripe_webhook(request: Request) -> dict:
+    """Handle Stripe webhook events.
+
+    Events: checkout.session.completed, invoice.payment_succeeded,
+    invoice.payment_failed, customer.subscription.deleted
+    """
+    payload = await request.body()
+    signature = request.headers.get("Stripe-Signature", "")
+
+    if settings.mock_stripe:
+        # In mock mode, parse payload directly
+        import json
+        event = json.loads(payload)
+    else:
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, signature, settings.stripe_webhook_secret
+            )
+        except stripe.SignatureVerificationError:
+            raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+
+    event_type = event["type"]
+    data = event["data"]["object"]
+
+    logger.info(f"Stripe event: {event_type}")
+
+    if event_type == "checkout.session.completed":
+        await handle_checkout_completed(data)
+    elif event_type == "invoice.payment_succeeded":
+        await handle_invoice_paid(data)
+    elif event_type == "invoice.payment_failed":
+        await handle_invoice_failed(data)
+    elif event_type == "customer.subscription.deleted":
+        await handle_subscription_deleted(data)
+
+    return {"status": "ok"}
+
+
+async def handle_checkout_completed(session: dict) -> None:
+    """Handle successful checkout: create subscription + credits + trigger provisioning."""
+    user_id = session["metadata"]["user_id"]
+    customer_id = session["customer"]
+    subscription_id = session["subscription"]
+
+    # Create subscription record
+    await db.upsert(
+        "subscriptions",
+        {
+            "user_id": user_id,
+            "stripe_customer_id": customer_id,
+            "stripe_subscription_id": subscription_id,
+            "status": "ACTIVE",
+        },
+        on_conflict="user_id",
+    )
+
+    # Create credits
+    await db.upsert(
+        "user_credits",
+        {
+            "user_id": user_id,
+            "total_cents": 1000,  # $10
+            "used_cents": 0,
+        },
+        on_conflict="user_id",
+    )
+
+    # Create provisioning job (auto-start assistant)
+    await db.insert("provisioning_jobs", {
+        "user_id": user_id,
+        "status": "PENDING",
+    })
+
+    # Create assistant record
+    await db.upsert(
+        "assistants",
+        {"user_id": user_id, "status": "PROVISIONING"},
+        on_conflict="user_id",
+    )
+
+    logger.info(f"Checkout completed for user {user_id}")
+
+
+async def handle_invoice_paid(invoice: dict) -> None:
+    """Handle successful invoice: renew period, reset credits."""
+    subscription_id = invoice["subscription"]
+
+    # Find subscription by stripe_subscription_id
+    sub = await db.select(
+        "subscriptions",
+        filters={"stripe_subscription_id": subscription_id},
+        single=True,
+    )
+    if not sub:
+        return
+
+    user_id = sub["user_id"]
+
+    # Update subscription period
+    await db.update(
+        "subscriptions",
+        {
+            "status": "ACTIVE",
+            "updated_at": datetime.utcnow().isoformat(),
+        },
+        {"user_id": user_id},
+    )
+
+    # Reset credits
+    await db.update(
+        "user_credits",
+        {"used_cents": 0, "updated_at": datetime.utcnow().isoformat()},
+        {"user_id": user_id},
+    )
+
+    logger.info(f"Invoice paid for user {user_id}")
+
+
+async def handle_invoice_failed(invoice: dict) -> None:
+    """Handle failed invoice: mark subscription as PAST_DUE."""
+    subscription_id = invoice["subscription"]
+
+    sub = await db.select(
+        "subscriptions",
+        filters={"stripe_subscription_id": subscription_id},
+        single=True,
+    )
+    if not sub:
+        return
+
+    await db.update(
+        "subscriptions",
+        {"status": "PAST_DUE", "updated_at": datetime.utcnow().isoformat()},
+        {"user_id": sub["user_id"]},
+    )
+
+    logger.info(f"Invoice failed for user {sub['user_id']}")
+
+
+async def handle_subscription_deleted(subscription: dict) -> None:
+    """Handle subscription cancellation: mark CANCELED, stop container."""
+    subscription_id = subscription["id"]
+
+    sub = await db.select(
+        "subscriptions",
+        filters={"stripe_subscription_id": subscription_id},
+        single=True,
+    )
+    if not sub:
+        return
+
+    user_id = sub["user_id"]
+
+    # Mark subscription canceled
+    await db.update(
+        "subscriptions",
+        {"status": "CANCELED", "updated_at": datetime.utcnow().isoformat()},
+        {"user_id": user_id},
+    )
+
+    # Mark assistant as NONE (worker will stop container)
+    await db.update(
+        "assistants",
+        {"status": "NONE", "updated_at": datetime.utcnow().isoformat()},
+        {"user_id": user_id},
+    )
+
+    logger.info(f"Subscription canceled for user {user_id}")
