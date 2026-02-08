@@ -78,8 +78,18 @@ export interface UserProfile {
   assistant_status: string | null;
 }
 
+// Available models for selection
+export const AVAILABLE_MODELS = [
+  { id: "anthropic/claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5", description: "Fast and capable" },
+  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful" },
+  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fastest responses" },
+] as const;
+
+export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";
+
 export interface AssistantResponse {
   status: string;
+  model: string;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -109,12 +119,29 @@ export interface ConnectResponse {
   auth_url: string;
 }
 
+export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "PATCH",
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 // API Functions
 export const api = {
   getMe: () => apiGet<UserProfile>("/api/v1/users/me"),
   setPhone: (phone: string) => apiPost<UserProfile>("/api/v1/users/me/phone", { phone }),
   getAssistant: () => apiGet<AssistantResponse>("/api/v1/assistants"),
-  createAssistant: () => apiPost<{ status: string }>("/api/v1/assistants"),
+  createAssistant: (model?: string) => apiPost<{ status: string; model: string }>("/api/v1/assistants", { model: model || DEFAULT_MODEL }),
+  updateAssistant: (model: string) => apiPatch<AssistantResponse>("/api/v1/assistants", { model }),
   deleteAssistant: () => apiDelete("/api/v1/assistants"),
   getUsage: () => apiGet<UsageResponse>("/api/v1/usage"),
   createCheckout: () => apiPost<{ checkout_url: string }>("/api/v1/checkout"),

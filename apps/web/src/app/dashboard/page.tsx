@@ -9,6 +9,8 @@ import {
   AssistantResponse,
   UsageResponse,
   IntegrationsResponse,
+  AVAILABLE_MODELS,
+  DEFAULT_MODEL,
 } from "@/lib/api";
 
 // Catalyst components
@@ -38,6 +40,7 @@ import {
   DropdownDivider,
 } from "@/components/dropdown";
 import { Navbar, NavbarSpacer } from "@/components/navbar";
+import { Logo } from "@/components/logo";
 
 // Heroicons
 import {
@@ -69,6 +72,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [connectingService, setConnectingService] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<Section>("assistant");
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
 
   useEffect(() => {
     loadData();
@@ -89,6 +93,11 @@ export default function DashboardPage() {
       setUsage(usageData);
       setIntegrations(integrationsData);
 
+      // Set selected model from assistant data
+      if (assistantData?.model) {
+        setSelectedModel(assistantData.model);
+      }
+
       if (!userData.phone) {
         router.push("/onboarding");
         return;
@@ -103,7 +112,7 @@ export default function DashboardPage() {
   async function handleCreateAssistant() {
     try {
       setError(null);
-      await api.createAssistant();
+      await api.createAssistant(selectedModel);
       await loadData();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create assistant";
@@ -120,6 +129,21 @@ export default function DashboardPage() {
       }
 
       setError(message);
+    }
+  }
+
+  async function handleUpdateModel(newModel: string) {
+    try {
+      setError(null);
+      setSelectedModel(newModel);
+      await api.updateAssistant(newModel);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update model");
+      // Revert on error
+      if (assistant?.model) {
+        setSelectedModel(assistant.model);
+      }
     }
   }
 
@@ -181,7 +205,7 @@ export default function DashboardPage() {
       <SidebarHeader>
         <SidebarSection>
           <SidebarItem href="/dashboard">
-            <span className="text-lg font-bold">YourClaw</span>
+            <Logo size="md" showText={true} href={undefined} />
           </SidebarItem>
         </SidebarSection>
       </SidebarHeader>
@@ -252,6 +276,9 @@ export default function DashboardPage() {
           <AssistantSection
             user={user}
             assistant={assistant}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            onUpdateModel={handleUpdateModel}
             onCreateAssistant={handleCreateAssistant}
             onDeleteAssistant={handleDeleteAssistant}
             onRefresh={loadData}
@@ -276,16 +303,25 @@ export default function DashboardPage() {
 function AssistantSection({
   user,
   assistant,
+  selectedModel,
+  onModelChange,
+  onUpdateModel,
   onCreateAssistant,
   onDeleteAssistant,
   onRefresh,
 }: {
   user: UserProfile | null;
   assistant: AssistantResponse | null;
+  selectedModel: string;
+  onModelChange: (model: string) => void;
+  onUpdateModel: (model: string) => void;
   onCreateAssistant: () => void;
   onDeleteAssistant: () => void;
   onRefresh: () => void;
 }) {
+  const canChangeModel = !assistant || assistant.status === "NONE" || assistant.status === "ERROR";
+  const currentModelInfo = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
+
   return (
     <div className="space-y-8">
       <div>
@@ -295,6 +331,41 @@ function AssistantSection({
 
       <Divider />
 
+      {/* Model Selection */}
+      <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
+        <Subheading className="mb-4">AI Model</Subheading>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {AVAILABLE_MODELS.map((model) => (
+            <button
+              key={model.id}
+              onClick={() => {
+                if (canChangeModel) {
+                  onModelChange(model.id);
+                } else if (assistant?.status === "READY") {
+                  onUpdateModel(model.id);
+                }
+              }}
+              disabled={assistant?.status === "PROVISIONING"}
+              className={`relative rounded-lg border p-4 text-left transition-all ${
+                selectedModel === model.id
+                  ? "border-zinc-950 dark:border-white bg-zinc-50 dark:bg-zinc-800"
+                  : "border-zinc-950/10 dark:border-white/10 hover:border-zinc-950/30 dark:hover:border-white/30"
+              } ${assistant?.status === "PROVISIONING" ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            >
+              <p className="text-sm font-medium text-zinc-950 dark:text-white">{model.name}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{model.description}</p>
+              {selectedModel === model.id && (
+                <div className="absolute top-2 right-2 size-2 rounded-full bg-green-500" />
+              )}
+            </button>
+          ))}
+        </div>
+        {assistant?.status === "READY" && (
+          <Text className="mt-3 text-xs">Changing model will reprovision your assistant.</Text>
+        )}
+      </div>
+
+      {/* Status */}
       <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
         <div className="flex items-center justify-between mb-6">
           <Subheading>Status</Subheading>
@@ -305,6 +376,10 @@ function AssistantSection({
           {assistant?.status === "READY" && (
             <Text>
               Your assistant is ready! Message your WhatsApp number to start chatting.
+              <br />
+              <span className="text-zinc-500 dark:text-zinc-400 text-sm">
+                Model: {currentModelInfo?.name || selectedModel}
+              </span>
             </Text>
           )}
 
