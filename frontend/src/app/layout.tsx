@@ -10,6 +10,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "YourClaw - Your AI Assistant on WhatsApp",
   description: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts — while you sleep.",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
