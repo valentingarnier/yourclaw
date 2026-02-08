@@ -2,11 +2,11 @@
 node_modules/
 .pnpm-store/
 
-
-docs/
 # Next.js
 .next/
 out/
+
+docs/
 
 # Python
 __pycache__/
