@@ -3,7 +3,7 @@ services:
     name: yourclaw-api
     runtime: python
     region: frankfurt
-    rootDir: services/api
+    rootDir: backend
     buildCommand: pip install uv && uv sync --frozen
     startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
@@ -60,7 +60,7 @@ services:
     name: yourclaw-worker
     runtime: python
     region: frankfurt
-    rootDir: services/api
+    rootDir: backend
     buildCommand: pip install uv && uv sync --frozen
     startCommand: uv run python -m app.worker
     plan: starter
