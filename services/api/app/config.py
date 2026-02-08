@@ -20,7 +20,8 @@ class Settings(BaseSettings):
 
     # Hetzner Host Server
     host_server_ip: str = ""
-    host_server_ssh_key_path: str = ""
+    host_server_ssh_key_path: str = ""  # Local dev: path to SSH key file
+    host_server_ssh_key: str = ""  # Production: SSH key content (for Render/Railway)
 
     # Shared LLM Key
     anthropic_api_key: str = ""

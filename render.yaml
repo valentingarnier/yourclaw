@@ -1,0 +1,151 @@
+# =============================================================================
+# Render Blueprint - YourClaw Backend
+# =============================================================================
+# Deploy: Render Dashboard → New → Blueprint → Connect this repo
+# Frontend: Deploy separately on Vercel (apps/web)
+
+services:
+  # ---------------------------------------------------------------------------
+  # API Server (FastAPI)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: yourclaw-api
+    runtime: python
+    region: frankfurt  # Close to Hetzner host server (change if needed)
+    rootDir: services/api
+    buildCommand: pip install uv && uv sync --frozen
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    numInstances: 1
+    plan: starter  # $7/mo - no cold starts (required for webhooks)
+    envVars:
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # Twilio
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
+
+      # Stripe
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+
+      # Host Server (for container provisioning)
+      - key: HOST_SERVER_IP
+        sync: false
+      - key: HOST_SERVER_SSH_KEY
+        sync: false  # Store the private key content directly (see README)
+
+      # LLM
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Google OAuth (integrations)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # Security
+      - key: ENCRYPTION_KEY
+        sync: false
+
+      # URLs (set after deploy)
+      - key: API_URL
+        sync: false  # https://yourclaw-api.onrender.com
+      - key: APP_URL
+        sync: false  # https://yourclaw.vercel.app or custom domain
+
+      # Rate Limits
+      - key: RATE_LIMIT_MSG_PER_MIN
+        value: "5"
+      - key: RATE_LIMIT_MSG_PER_DAY
+        value: "100"
+
+      # Production mode (disable mocks)
+      - key: MOCK_TWILIO
+        value: "false"
+      - key: MOCK_CONTAINERS
+        value: "false"
+      - key: MOCK_STRIPE
+        value: "false"
+
+  # ---------------------------------------------------------------------------
+  # Background Worker (Provisioning Jobs)
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: yourclaw-worker
+    runtime: python
+    region: frankfurt
+    rootDir: services/api
+    buildCommand: pip install uv && uv sync --frozen
+    startCommand: uv run python -m app.worker
+    numInstances: 1
+    plan: starter  # $7/mo
+    envVars:
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # Twilio (for "assistant ready" messages)
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
+
+      # Host Server
+      - key: HOST_SERVER_IP
+        sync: false
+      - key: HOST_SERVER_SSH_KEY
+        sync: false
+
+      # LLM
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Google OAuth (for MCP token injection)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # Security
+      - key: ENCRYPTION_KEY
+        sync: false
+
+      # URLs
+      - key: API_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+
+      # Worker settings
+      - key: WORKER_POLL_INTERVAL
+        value: "5"
+      - key: WORKER_MAX_ATTEMPTS
+        value: "3"
+
+      # Production mode
+      - key: MOCK_TWILIO
+        value: "false"
+      - key: MOCK_CONTAINERS
+        value: "false"

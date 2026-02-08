@@ -5,9 +5,9 @@ Handles SSH connection to host, container creation, health checks, and cleanup.
 
 import asyncio
 import copy
+import io
 import json
 import logging
-import uuid
 
 import paramiko
 
@@ -15,12 +15,85 @@ from app.config import settings
 
 logger = logging.getLogger("yourclaw.container")
 
-# Openclaw config template
+# Custom image with Chromium for browser support
+CONTAINER_IMAGE = "yourclaw-openclaw:latest"
+
+# Default model if not specified
+DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+
+
+def build_openclaw_config(gateway_token: str, model: str = DEFAULT_MODEL) -> dict:
+    """Build OpenClaw config with the specified model and full capabilities."""
+    return {
+        "agents": {
+            "defaults": {
+                "model": {
+                    "primary": model
+                },
+                # Maximum context window for Claude models
+                "contextTokens": 200000,
+                # Enable extended thinking for complex tasks
+                "thinkingDefault": "low",
+                # Enable streaming for better UX
+                "blockStreamingDefault": "on",
+                # Context management for long conversations
+                "contextPruning": {
+                    "mode": "adaptive",
+                    "hardClearRatio": 0.5
+                },
+                # Memory compaction for efficiency
+                "compaction": {
+                    "memoryFlush": {"enabled": True}
+                }
+            }
+        },
+        "gateway": {
+            "mode": "local",
+            "port": 18789,
+            "auth": {
+                "mode": "token",
+                "token": gateway_token
+            },
+            "http": {
+                "endpoints": {
+                    "chatCompletions": {"enabled": True}
+                }
+            }
+        },
+        # Full tool access - no restrictions
+        "tools": {
+            "profile": "full",
+            "web": {
+                "search": {"enabled": True},
+                "fetch": {"enabled": True}
+            },
+            "media": {
+                "image": {"enabled": True}
+            }
+        },
+        # Browser automation with headless Chromium
+        "browser": {
+            "enabled": True,
+            "defaultProfile": "openclaw",
+            "headless": True,
+            "noSandbox": True,
+            "attachOnly": False,
+            "profiles": {
+                "openclaw": {
+                    "cdpPort": 18800,
+                    "color": "#FF4500"
+                }
+            }
+        }
+    }
+
+
+# Legacy template for backward compatibility (not used in new code)
 OPENCLAW_CONFIG_TEMPLATE = {
     "agents": {
         "defaults": {
             "model": {
-                "primary": "anthropic/claude-sonnet-4-5-20250929"
+                "primary": DEFAULT_MODEL
             }
         }
     },
@@ -80,20 +153,40 @@ You are a personal AI assistant running on YourClaw, deployed via WhatsApp. Your
 class ContainerService:
     """Manages Openclaw containers on remote Docker host."""
 
-    def __init__(self, host_ip: str, ssh_key_path: str):
+    def __init__(self, host_ip: str, ssh_key_path: str = "", ssh_key_content: str = ""):
         self.host_ip = host_ip
         self.ssh_key_path = ssh_key_path
+        self.ssh_key_content = ssh_key_content
 
     def _get_ssh_client(self) -> paramiko.SSHClient:
-        """Create SSH client connected to host server."""
+        """Create SSH client connected to host server.
+
+        Supports two modes:
+        - ssh_key_path: Local file path (for local dev)
+        - ssh_key_content: Key content as string (for Render/Railway)
+        """
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(
-            hostname=self.host_ip,
-            username="root",
-            key_filename=self.ssh_key_path,
-            timeout=30,
-        )
+
+        if self.ssh_key_content:
+            # Production: Load key from content (env var)
+            # Handle both raw content and escaped newlines
+            key_content = self.ssh_key_content.replace("\\n", "\n")
+            pkey = paramiko.RSAKey.from_private_key(io.StringIO(key_content))
+            client.connect(
+                hostname=self.host_ip,
+                username="root",
+                pkey=pkey,
+                timeout=30,
+            )
+        else:
+            # Local dev: Load key from file path
+            client.connect(
+                hostname=self.host_ip,
+                username="root",
+                key_filename=self.ssh_key_path,
+                timeout=30,
+            )
         return client
 
     def _exec_command(self, client: paramiko.SSHClient, command: str) -> tuple[str, str, int]:
@@ -109,6 +202,7 @@ class ContainerService:
         gateway_token: str,
         anthropic_api_key: str,
         integrations: dict[str, str] | None = None,
+        model: str = DEFAULT_MODEL,
     ) -> str:
         """Create and start an Openclaw container for a user.
 
@@ -119,12 +213,13 @@ class ContainerService:
             anthropic_api_key: Anthropic API key (shared or BYOK)
             integrations: Dict of service -> access_token for MCP servers
                           e.g. {"GOOGLE_CALENDAR": "ya29...", "GOOGLE_GMAIL": "ya29..."}
+            model: OpenClaw model identifier (e.g., "anthropic/claude-sonnet-4-5-20250929")
 
         Returns:
             Container ID
         """
         if settings.mock_containers:
-            logger.info(f"[Mock] Creating container for user {user_id} on port {port}")
+            logger.info(f"[Mock] Creating container for user {user_id} on port {port} with model {model}")
             await asyncio.sleep(2)  # Simulate provisioning time
             return f"mock-container-{user_id[:8]}"
 
@@ -132,9 +227,9 @@ class ContainerService:
         config_dir = f"/data/yourclaw/{user_id}/config"
         workspace_dir = f"/data/yourclaw/{user_id}/workspace"
 
-        # Generate Openclaw config
-        config = copy.deepcopy(OPENCLAW_CONFIG_TEMPLATE)
-        config["gateway"]["auth"]["token"] = gateway_token
+        # Generate Openclaw config with user's selected model
+        config = build_openclaw_config(gateway_token, model)
+        logger.info(f"Creating container for user {user_id} with model {model}")
 
         # Add MCP servers for connected integrations
         if integrations:
@@ -174,7 +269,7 @@ class ContainerService:
             self._exec_command(client, f"docker rm -f {container_name} 2>/dev/null || true")
 
             # Run container
-            # Use node:22-bookworm (not slim) because openclaw needs git
+            # Use custom image with Chromium for browser support
             # Mount config to /root/.openclaw (includes workspace subfolder)
             # Openclaw writes to /root/.openclaw/workspace/ by default
             docker_cmd = f"""docker run -d \
@@ -186,8 +281,7 @@ class ContainerService:
                 -e ANTHROPIC_API_KEY={anthropic_api_key} \
                 -v {config_dir}:/root/.openclaw \
                 -v {workspace_dir}:/root/.openclaw/workspace \
-                node:22-bookworm \
-                bash -c "npm i -g openclaw && openclaw gateway --port 18789 --bind lan"
+                {CONTAINER_IMAGE}
             """
 
             stdout, stderr, exit_code = self._exec_command(client, docker_cmd)
@@ -327,29 +421,31 @@ class ContainerService:
         user_id: str,
         gateway_token: str,
         integrations: dict[str, str] | None = None,
+        model: str = DEFAULT_MODEL,
     ) -> bool:
         """Update Openclaw config and restart container.
 
-        Used when user connects/disconnects integrations.
+        Used when user connects/disconnects integrations or changes model.
 
         Args:
             user_id: User's UUID
             gateway_token: Auth token for Openclaw gateway
             integrations: Dict of service -> access_token for MCP servers
+            model: OpenClaw model identifier
 
         Returns:
             True if successful
         """
         if settings.mock_containers:
-            logger.info(f"[Mock] Updating config for user {user_id}")
+            logger.info(f"[Mock] Updating config for user {user_id} with model {model}")
             return True
 
         container_name = f"yourclaw-{user_id}"
         config_dir = f"/data/yourclaw/{user_id}/config"
 
-        # Generate updated config
-        config = copy.deepcopy(OPENCLAW_CONFIG_TEMPLATE)
-        config["gateway"]["auth"]["token"] = gateway_token
+        # Generate updated config with user's model
+        config = build_openclaw_config(gateway_token, model)
+        logger.info(f"Updating config for user {user_id} with model {model}")
 
         # Add MCP servers for connected integrations
         if integrations:
@@ -394,4 +490,5 @@ class ContainerService:
 container_service = ContainerService(
     host_ip=settings.host_server_ip,
     ssh_key_path=settings.host_server_ssh_key_path,
+    ssh_key_content=settings.host_server_ssh_key,
 )
