@@ -68,11 +68,7 @@ function HeroSection() {
       provider: "Anthropic",
       available: true,
       color: "from-[#D97757] to-[#C46644]",
-      icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-        </svg>
-      ),
+      icon: <span className="text-sm font-bold">A</span>,
     },
     {
       id: "openai" as const,
@@ -286,7 +282,7 @@ function HeroSection() {
                       type="tel"
                       value={phoneNumber}
                       onChange={handlePhoneChange}
-                      placeholder="(555) 123-4567"
+                      placeholder="+1 555 123 4567"
                       className={clsx(
                         "w-full pl-12 pr-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
                         phoneError
@@ -344,7 +340,7 @@ function HeroSection() {
 
                 {/* Price note */}
                 <p className="mt-4 text-center text-xs text-zinc-500">
-                  $20/month • $10 in AI credits included • Cancel anytime
+                  $20/month • Cancel anytime
                 </p>
               </div>
             </TiltCard>
@@ -405,7 +401,7 @@ function TimeComparisonSection() {
 
             <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
               <p className="text-sm text-red-400">
-                <span className="font-semibold">Non-technical?</span> Multiply by 10× — you'll need to learn each step first.
+                <span className="font-semibold">Plus:</span> debugging errors, security updates, and ongoing maintenance.
               </p>
             </div>
           </div>
@@ -726,10 +722,10 @@ function IPhoneMockup() {
           {/* WhatsApp header */}
           <div className="bg-[#1F2C34] px-4 py-3 flex items-center gap-3 border-b border-white/5">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center">
-              <SparklesIcon className="w-5 h-5 text-zinc-900" />
+              <span className="text-zinc-900 font-bold text-sm">YC</span>
             </div>
             <div className="flex-1">
-              <p className="text-white font-semibold text-sm">Your Assistant</p>
+              <p className="text-white font-semibold text-sm">YourClaw</p>
               <p className="text-emerald-400 text-xs">online</p>
             </div>
           </div>
@@ -762,10 +758,16 @@ function IPhoneMockup() {
                   {msg.text}
                 </div>
                 <p className={clsx(
-                  "text-[10px] text-zinc-500 mt-1",
-                  msg.type === "user" ? "text-right" : ""
+                  "text-[10px] text-zinc-500 mt-1 flex items-center gap-1",
+                  msg.type === "user" ? "justify-end" : ""
                 )}>
-                  {msg.type === "user" ? "9:41 AM" : "9:41 AM ✓✓"}
+                  <span>9:41 AM</span>
+                  {msg.type === "user" && (
+                    <svg className="w-4 h-3 text-[#53BDEB]" viewBox="0 0 16 11" fill="none">
+                      <path d="M11.071 0.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.405-2.272a.463.463 0 0 0-.336-.136.475.475 0 0 0-.343.153.482.482 0 0 0-.127.34.464.464 0 0 0 .149.323l2.758 2.588a.454.454 0 0 0 .312.127.469.469 0 0 0 .357-.17l6.545-8.076a.476.476 0 0 0 .088-.381.472.472 0 0 0-.123-.208z" fill="currentColor"/>
+                      <path d="M15.071 0.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-1.028-.97a.457.457 0 0 0-.074.633l.918.863a.454.454 0 0 0 .312.127.469.469 0 0 0 .357-.17l6.545-8.076a.476.476 0 0 0 .088-.381.472.472 0 0 0-.123-.208l-.12.47z" fill="currentColor"/>
+                    </svg>
+                  )}
                 </p>
               </div>
             ))}
@@ -865,7 +867,6 @@ function HowItWorks() {
 function PricingSection() {
   const features = [
     "Unlimited messages",
-    "$10 in monthly AI credits",
     "Web browsing & research",
     "File creation & analysis",
     "Code execution",
@@ -934,7 +935,7 @@ function FAQSection() {
   const faqs = [
     {
       question: "What is YourClaw?",
-      answer: "YourClaw gives you a personal AI assistant on WhatsApp. Powered by Claude — one of the world's most capable AI models — it can research, write, analyze, code, and help with any task. All through simple chat.",
+      answer: "YourClaw gives you a personal AI assistant on WhatsApp. Powered by OpenClaw — a powerful open-source AI agent framework — it can research, write, analyze, code, and help with any task. All through simple chat.",
     },
     {
       question: "How is this different from ChatGPT?",
@@ -947,10 +948,6 @@ function FAQSection() {
     {
       question: "Is my data safe?",
       answer: "Yes. Each user gets their own isolated AI instance running on dedicated infrastructure. Your data is encrypted, never shared, and never used to train models.",
-    },
-    {
-      question: "What are AI credits?",
-      answer: "$20/month includes $10 in AI credits, which covers typical usage (hundreds of messages). Need more? Add your own Anthropic API key for unlimited usage at cost.",
     },
     {
       question: "What can the assistant actually do?",
@@ -1034,7 +1031,7 @@ function CTASection() {
               <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </a>
             <p className="mt-4 text-sm text-zinc-500">
-              $10 in AI credits included • Cancel anytime
+              Cancel anytime
             </p>
           </div>
         </div>
