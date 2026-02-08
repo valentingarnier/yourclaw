@@ -20,16 +20,20 @@ app = FastAPI(
 )
 
 # Build CORS origins list (include www variants automatically)
+# Strip trailing slashes - CORS requires exact match
+app_url = settings.app_url.rstrip("/")
+marketing_url = settings.marketing_url.rstrip("/")
+
 cors_origins = [
-    settings.app_url,
-    settings.marketing_url,
+    app_url,
+    marketing_url,
     "http://localhost:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3000",
 ]
 
 # Add www variants if the URL is a production domain
-for url in [settings.app_url, settings.marketing_url]:
+for url in [app_url, marketing_url]:
     if url.startswith("https://") and not url.startswith("https://www."):
         # Add www variant: https://example.com -> https://www.example.com
         cors_origins.append(url.replace("https://", "https://www."))
