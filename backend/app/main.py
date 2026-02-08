@@ -15,8 +15,8 @@ logger = logging.getLogger("yourclaw")
 app = FastAPI(
     title="YourClaw API",
     version="0.1.0",
-    docs_url="/api/v1/docs",
-    openapi_url="/api/v1/openapi.json",
+    docs_url="/docs",
+    openapi_url="/openapi.json",
 )
 
 app.add_middleware(
