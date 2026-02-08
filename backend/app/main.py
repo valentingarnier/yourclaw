@@ -19,15 +19,29 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
+# Build CORS origins list (include www variants automatically)
+cors_origins = [
+    settings.app_url,
+    settings.marketing_url,
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+]
+
+# Add www variants if the URL is a production domain
+for url in [settings.app_url, settings.marketing_url]:
+    if url.startswith("https://") and not url.startswith("https://www."):
+        # Add www variant: https://example.com -> https://www.example.com
+        cors_origins.append(url.replace("https://", "https://www."))
+    elif url.startswith("https://www."):
+        # Add non-www variant: https://www.example.com -> https://example.com
+        cors_origins.append(url.replace("https://www.", "https://"))
+
+logger.info(f"CORS allowed origins: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.app_url,
-        settings.marketing_url,
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
