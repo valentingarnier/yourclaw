@@ -1,107 +1,20 @@
 services:
-  # API Server (FastAPI)
   - type: web
     name: yourclaw-api
     runtime: python
-    region: frankfurt
     rootDir: services/api
     buildCommand: pip install uv && uv sync --frozen
     startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
-    plan: starter
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.0"
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_WHATSAPP_NUMBER
-        sync: false
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-      - key: STRIPE_PRICE_ID
-        sync: false
-      - key: HOST_SERVER_IP
-        sync: false
-      - key: HOST_SERVER_SSH_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: ENCRYPTION_KEY
-        sync: false
-      - key: API_URL
-        sync: false
-      - key: APP_URL
-        sync: false
-      - key: RATE_LIMIT_MSG_PER_MIN
-        value: "5"
-      - key: RATE_LIMIT_MSG_PER_DAY
-        value: "100"
-      - key: MOCK_TWILIO
-        value: "false"
-      - key: MOCK_CONTAINERS
-        value: "false"
-      - key: MOCK_STRIPE
-        value: "false"
 
-  # Background Worker (Provisioning Jobs)
   - type: worker
     name: yourclaw-worker
     runtime: python
-    region: frankfurt
     rootDir: services/api
     buildCommand: pip install uv && uv sync --frozen
     startCommand: uv run python -m app.worker
-    plan: starter
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.0"
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_WHATSAPP_NUMBER
-        sync: false
-      - key: HOST_SERVER_IP
-        sync: false
-      - key: HOST_SERVER_SSH_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: ENCRYPTION_KEY
-        sync: false
-      - key: API_URL
-        sync: false
-      - key: APP_URL
-        sync: false
-      - key: WORKER_POLL_INTERVAL
-        value: "5"
-      - key: WORKER_MAX_ATTEMPTS
-        value: "3"
-      - key: MOCK_TWILIO
-        value: "false"
-      - key: MOCK_CONTAINERS
-        value: "false"
