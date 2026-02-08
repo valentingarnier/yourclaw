@@ -683,7 +683,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxx
 
 ### Current State (MVP Launch)
 - **Shared key**: Single Anthropic API key used for all users. Key set as `ANTHROPIC_API_KEY` env var on each container.
-- **No credits system implemented yet**: Website mentions $10 credits but this is NOT built. All users share the same API key with no per-user tracking.
+- **No credits system**: Website no longer mentions credits. Simple $20/month subscription with shared API key.
 - **BYOK ready**: `api_keys` table exists for users to add their own key. Not exposed in UI yet.
 
 ### TODO: Decide Strategy for 100 Users at Launch
@@ -714,7 +714,7 @@ Options to consider:
 - **Test card**: `4242 4242 4242 4242` with any future date and CVC
 - **Mock mode**: `MOCK_STRIPE=true` skips payment, auto-creates subscription for dev
 
-**Note**: Website mentions "$10 in AI credits" but credits system is NOT implemented. See "LLM API Key Strategy" section for current approach.
+**Note**: Credits system is NOT implemented. Website now shows simple $20/month pricing without credits mention.
 
 **Stripe Test Credentials (configured in .env):**
 - Product: YourClaw Pro ($20/month)
@@ -753,8 +753,8 @@ GOOGLE_CLIENT_SECRET=               # GOCSPX-xxx
 ENCRYPTION_KEY=                     # Fernet key for encrypting user API keys + gateway tokens
 
 # App URLs
-API_URL=                            # https://api.yourclaw.com
-APP_URL=                            # https://yourclaw.com (single app for marketing + dashboard)
+API_URL=                            # https://yourclaw.onrender.com (Render)
+APP_URL=                            # https://www.yourclaw.dev (Vercel - marketing + dashboard)
 
 # Rate Limits
 RATE_LIMIT_MSG_PER_MIN=5            # per user
@@ -949,7 +949,7 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
   - [x] Webhook handles customer.subscription.deleted → cancels + stops container
   - [x] Frontend redirects to Stripe Checkout when user has no subscription
   - [x] Tested end-to-end with Stripe CLI
-  - [ ] TODO: Remove credits logic from webhook (or implement credits system)
+  - [x] Removed "$10 credits" from website (no credits system for MVP)
 - [x] **Container cleanup fix**:
   - [x] DELETE /assistants now keeps container_id (was clearing it immediately)
   - [x] Worker cleanup_deleted_assistants() properly stops containers with status=NONE
@@ -1003,16 +1003,14 @@ else:
 1. **API Key Strategy for Launch**:
    - [ ] Decide: shared key + rate limits vs BYOK required vs credits system
    - [ ] Implement daily message rate limits (e.g., 100 msg/day per user)
-   - [ ] Update webhook to remove credits logic (or implement it)
-   - [ ] Update website copy if needed (currently says "$10 credits")
-3. **Wait for Meta WhatsApp approval** (production number `+15557589499`)
-4. **Production deployment**:
-   - [ ] Deploy API to production (Hetzner or similar)
-   - [ ] Deploy frontend to Vercel
-   - [ ] Configure real Twilio + Stripe webhooks
+   - [x] Removed "$10 credits" from website copy
+2. **Wait for Meta WhatsApp approval** (production number `+15557589499`)
+3. **Production webhooks**:
+   - [ ] Configure real Twilio webhook URL (currently sandbox)
+   - [ ] Configure real Stripe webhook URL
    - [ ] Fix Twilio signature validation for production (currently using SKIP_TWILIO_SIGNATURE)
    - [ ] Set up monitoring/logging
-5. **Post-launch: Google Integrations** (PAUSED - not production ready):
+4. **Post-launch: Google Integrations** (PAUSED - not production ready):
    - [x] Backend complete: OAuth flow, token storage, MCP config injection
    - [x] Frontend complete: Connected Services UI (currently hidden)
    - [ ] Test with real Google OAuth credentials
@@ -1040,6 +1038,22 @@ else:
   - Hidden "Connected Services" from dashboard
 - [x] **Browser sandbox model**: Lightweight gateway + separate browser container via Docker socket
 - [x] **Stripe checkout + subscription flow** (tested with Stripe CLI)
+- [x] **Production deployment** (2026-02-08):
+  - Backend deployed on Render: `https://yourclaw.onrender.com`
+  - Frontend deployed on Vercel: `https://www.yourclaw.dev`
+  - CORS configured with automatic www/non-www variants and trailing slash handling
+  - Environment variables: `APP_URL`, `MARKETING_URL` set in Render
+- [x] **Marketing page polish** (2026-02-08):
+  - Removed all "$10 in AI credits" references (pricing, hero, CTA, FAQ)
+  - Phone placeholder now E.164 format: `+1 555 123 4567`
+  - Competitor section: replaced "Non-technical? Multiply by 10×" with maintenance note
+  - FAQ: "Powered by OpenClaw" (not Claude), removed credits question
+  - Phone mockup improvements:
+    - Header: "Y" logo, "YourClaw" name, compact design
+    - Messages: varying timestamps (9:41 AM, 9:42 AM)
+    - Proper WhatsApp blue double-check SVG icons
+  - Model selector: official logos (Claude, OpenAI, Gemini) in `/public/`
+  - Model buttons: added shadows for depth
 
 ### Working Style
 - Step by step, building block by building block
