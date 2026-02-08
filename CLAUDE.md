@@ -8,11 +8,12 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 ## Architecture Decisions
 - **Auth + DB**: Supabase (Google sign-in only, cloud Postgres, no local emulator)
 - **Backend**: FastAPI — all traffic routed through it (frontend never talks to Supabase directly for data)
-- **Frontend**: Next.js App Router + Tailwind (two apps: marketing + authenticated app)
+- **Frontend**: Next.js App Router + Tailwind (single app with marketing + authenticated routes)
 - **Containers**: Docker on shared Hetzner host server (NOT VMs). One container per user.
 - **WhatsApp**: Single Twilio number, route inbound by sender phone (`From` field). Uses Twilio API (NOT Openclaw's built-in Baileys integration).
 - **Openclaw API**: `POST /v1/chat/completions` on port 18789 per container (OpenAI-compatible, enabled via gateway config)
-- **Openclaw install**: `npm i -g openclaw` inside container, then `openclaw gateway` to start
+- **Container image**: Custom `yourclaw-openclaw:latest` with Chromium for browser tool support
+- **Openclaw install**: Pre-installed in container image, starts with `openclaw gateway`
 - **Job queue**: DB-backed (`provisioning_jobs` table + Python worker polling). No Redis/Celery for MVP. Low traffic assumed.
 - **LLM provider**: Anthropic only (modular design for future providers). Shared API key with credits + BYOK.
 - **Openclaw tools**: ALL tools enabled. No restrictions. Full power of Openclaw.
@@ -21,8 +22,8 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 
 ## User Journey (End to End)
 ```
-1. User lands on marketing site (yourclaw.com) → sees demo + CTA
-2. User clicks "Get Started" → redirected to app (app.yourclaw.com/login)
+1. User lands on yourclaw.com → sees landing page with demo + CTA
+2. User clicks "Get Started" → goes to /login
 3. User signs in with Google (Supabase Auth)
 4. User enters WhatsApp number (E.164 format) on /onboarding
 5. User clicks "Create my assistant" on /dashboard
@@ -77,10 +78,9 @@ Worker loop (poll every 5s):
   → docker run -d --name yourclaw-{user_id} \
       -p {port}:18789 \
       --memory=2g --cpus=1 \
-      -v /data/yourclaw/{user_id}/config:/home/node/.openclaw \
-      -v /data/yourclaw/{user_id}/workspace:/home/node/workspace \
-      node:22-bookworm-slim \
-      bash -c "npm i -g openclaw && openclaw gateway --port 18789"
+      -v /data/yourclaw/{user_id}/config:/root/.openclaw \
+      -v /data/yourclaw/{user_id}/workspace:/root/.openclaw/workspace \
+      yourclaw-openclaw:latest
   → write openclaw config to /data/yourclaw/{user_id}/config/openclaw.json
   → health check: poll POST /v1/chat/completions with test message (retry 10x, 5s interval)
   → on success:
@@ -129,11 +129,14 @@ Stripe webhook → POST /api/v1/webhooks/stripe
 
 ## Repo Structure
 ```
-/apps/marketing            — Public marketing site (Next.js + Tailwind)
-/apps/web                  — Authenticated dashboard app (Next.js + Tailwind + Catalyst)
-  /apps/web/src/components/  — Catalyst UI components (button, sidebar, dropdown, etc.)
-  /apps/web/src/lib/api.ts   — API client with types (UserProfile, IntegrationsResponse, etc.)
-  /apps/web/src/app/dashboard/page.tsx — Main dashboard with sidebar layout
+/apps/web                  — Next.js app (marketing + authenticated routes)
+  /apps/web/src/app/(marketing)/     — Marketing pages (/, /features, /pricing)
+  /apps/web/src/app/login/           — Login page (Google OAuth)
+  /apps/web/src/app/onboarding/      — Onboarding page (phone number input)
+  /apps/web/src/app/dashboard/       — Main dashboard with sidebar layout
+  /apps/web/src/components/          — Catalyst UI components (button, sidebar, etc.)
+  /apps/web/src/components/marketing/ — Marketing components (header, footer, mouse-gradient)
+  /apps/web/src/lib/api.ts           — API client with types
 /services/api              — FastAPI backend
   /services/api/app/
     main.py                — FastAPI app, CORS, middleware
@@ -353,17 +356,28 @@ POST   /webhooks/stripe               — Stripe events
 
 ## Openclaw Container Config
 
-Each container gets `~/.openclaw/openclaw.json`:
+Each container gets `~/.openclaw/openclaw.json` with full capabilities enabled:
 ```json
 {
   "agents": {
     "defaults": {
       "model": {
         "primary": "anthropic/claude-sonnet-4-5-20250929"
+      },
+      "contextTokens": 200000,
+      "thinkingDefault": "low",
+      "blockStreamingDefault": "on",
+      "contextPruning": {
+        "mode": "adaptive",
+        "hardClearRatio": 0.5
+      },
+      "compaction": {
+        "memoryFlush": { "enabled": true }
       }
     }
   },
   "gateway": {
+    "mode": "local",
     "port": 18789,
     "auth": {
       "mode": "token",
@@ -374,15 +388,76 @@ Each container gets `~/.openclaw/openclaw.json`:
         "chatCompletions": { "enabled": true }
       }
     }
+  },
+  "tools": {
+    "profile": "full",
+    "web": {
+      "search": { "enabled": true },
+      "fetch": { "enabled": true }
+    },
+    "media": {
+      "image": { "enabled": true }
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "openclaw",
+    "headless": true,
+    "noSandbox": true,
+    "attachOnly": false,
+    "profiles": {
+      "openclaw": {
+        "cdpPort": 18800,
+        "color": "#FF4500"
+      }
+    }
   }
 }
 ```
+
+### Configuration Breakdown
+
+| Section | Setting | Purpose |
+|---------|---------|---------|
+| `agents.defaults.contextTokens` | 200000 | Maximum context window for Claude models |
+| `agents.defaults.thinkingDefault` | "low" | Extended thinking for complex tasks |
+| `agents.defaults.blockStreamingDefault` | "on" | Stream responses for better UX |
+| `agents.defaults.contextPruning` | adaptive | Auto-manage token usage in long conversations |
+| `agents.defaults.compaction.memoryFlush` | enabled | Efficient memory management |
+| `tools.profile` | "full" | All tools enabled (fs, runtime, web, messaging) |
+| `tools.web.search/fetch` | enabled | Web search and page fetching |
+| `tools.media.image` | enabled | Image analysis via vision models |
+| `browser.enabled` | true | Headless Chromium for web automation |
+| `browser.defaultProfile` | "openclaw" | Use managed browser (not extension relay) |
+| `browser.headless` | true | Run without display (containerized) |
+| `browser.noSandbox` | true | Required for Docker containers |
+
+### Tool Profiles Reference
+
+OpenClaw supports 4 built-in tool profiles:
+- **minimal**: `session_status` only
+- **coding**: File system, runtime, sessions, memory, image
+- **messaging**: Messaging tools + session management
+- **full**: No restrictions (our default)
 
 The Anthropic API key is set via environment variable `ANTHROPIC_API_KEY` on the container (not in config file). This makes it easy to swap between shared key and BYOK without rewriting config.
 
 Openclaw gateway started with: `openclaw gateway --port 18789 --bind lan`
 
-Container base image: `node:22-bookworm` (not slim - Openclaw requires git)
+### Container Image
+
+Custom image: `yourclaw-openclaw:latest` (built from `infra/docker/Dockerfile`)
+
+Base: `node:22-bookworm` with:
+- Chromium browser (for browser tool support)
+- OpenClaw pre-installed globally
+- All Puppeteer dependencies
+
+Build on host server:
+```bash
+scp -r infra/docker/ root@$HOST_SERVER_IP:/tmp/yourclaw-docker/
+ssh root@$HOST_SERVER_IP "cd /tmp/yourclaw-docker && chmod +x build.sh && ./build.sh"
+```
 
 ### Container Directory Structure
 ```
@@ -428,6 +503,44 @@ Written to workspace on provisioning. Tells Openclaw:
 - Keep responses concise for mobile
 
 Located at: `/root/.openclaw/workspace/CLAUDE.md` in container
+
+### Memory Persistence Behavior
+
+| What | Persists Across Reprovisions? | Scope |
+|------|------------------------------|-------|
+| Workspace files (USER.md, IDENTITY.md) | Yes | Per user |
+| Container state | No | Recreated each provision |
+| Config (openclaw.json) | No | Regenerated with new settings |
+| Conversation history | Yes | Stored in DB, passed to each request |
+
+**To reset a user's long-term memory:**
+```bash
+rm -rf /data/yourclaw/{user_id}/workspace/*
+docker restart $(docker ps -q --filter name=yourclaw-{user_id})
+```
+
+## Model Selection
+
+Users can choose their AI model from the dashboard. Available models:
+
+| Model ID | Display Name | Description |
+|----------|--------------|-------------|
+| `anthropic/claude-sonnet-4-5-20250929` | Claude Sonnet 4.5 | Fast and capable (default) |
+| `anthropic/claude-opus-4-5-20251101` | Claude Opus 4.5 | Most powerful |
+| `anthropic/claude-haiku-4-5-20251001` | Claude Haiku 4.5 | Fastest responses |
+
+**Implementation:**
+- Model stored in `assistants.model` column (DB migration: `003_assistant_model.sql`)
+- Changed via PATCH `/api/v1/assistants` endpoint
+- Triggers reprovisioning to apply new model
+- Frontend shows model selector cards in Assistant section
+
+**Flow:**
+1. User clicks different model card in dashboard
+2. Frontend calls `PATCH /api/v1/assistants { model: "..." }`
+3. Backend updates DB, creates provisioning job
+4. Worker recreates container with new model in config
+5. Container restarts with new model
 
 ## MCP Servers / Integrations (KEY DIFFERENTIATOR)
 
@@ -578,8 +691,7 @@ ENCRYPTION_KEY=                     # Fernet key for encrypting user API keys + 
 
 # App URLs
 API_URL=                            # https://api.yourclaw.com
-APP_URL=                            # https://app.yourclaw.com
-MARKETING_URL=                      # https://yourclaw.com
+APP_URL=                            # https://yourclaw.com (single app for marketing + dashboard)
 
 # Rate Limits
 RATE_LIMIT_MSG_PER_MIN=5            # per user
@@ -619,6 +731,7 @@ MOCK_STRIPE=false                   # true: skip payment, auto-create subscripti
 ## Local Dev
 ```bash
 # 1. Clone and install frontend deps
+cd apps/web
 pnpm install
 
 # 2. Copy env
@@ -637,19 +750,15 @@ MOCK_TWILIO=true MOCK_CONTAINERS=true MOCK_STRIPE=true uv run uvicorn app.main:a
 cd services/api
 MOCK_CONTAINERS=true uv run python -m app.worker
 
-# 5. Start frontend
+# 6. Start frontend (includes marketing + app)
 cd apps/web
-pnpm dev  # port 3000
-
-# 6. Start marketing site
-cd apps/marketing
-pnpm dev  # port 3001
+pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc.
 ```
 
 ## Tech Stack Summary
 | Layer | Technology |
 |-------|-----------|
-| Marketing site | Next.js 15 + Tailwind |
+| Marketing site | Next.js 15 + Tailwind (dark theme, animated gradients, mouse effects) |
 | App frontend | Next.js 15 + Tailwind + Catalyst UI + @supabase/supabase-js |
 | UI Components | Catalyst (Tailwind UI) + Headless UI + Heroicons |
 | Backend API | FastAPI + SQLAlchemy + Pydantic |
@@ -666,20 +775,19 @@ pnpm dev  # port 3001
 
 ## Agent Responsibilities (for multi-agent builds)
 
-### Website Agent — /apps/marketing
-- Competitor scan (if applicable)
-- Marketing site: Hero, How It Works, Demo, Features, Pricing ($20/mo), FAQ, Trust/Safety
-- Responsive, modern SaaS style
-- CTA links to app.yourclaw.com
-
 ### Frontend Agent — /apps/web
-- /login (Google sign-in via Supabase)
-- /onboarding (WhatsApp number input, E.164 validation)
-- /dashboard with sidebar layout:
-  - Assistant section (status, create/delete)
-  - Connected Services section (Google Calendar, Gmail, Drive OAuth)
-  - Usage section (messages, credits, account info)
-  - Profile dropdown in sidebar footer (settings, sign out)
+- Marketing pages (route group `(marketing)`):
+  - `/` — Landing page with hero, how it works, features, pricing, FAQ
+  - `/features` — Full features page with integrations + capabilities
+  - `/pricing` — Pricing page with comparison table + FAQ
+- Auth + App pages:
+  - `/login` — Google sign-in via Supabase
+  - `/onboarding` — WhatsApp number input, E.164 validation
+  - `/dashboard` — Sidebar layout with sections:
+    - Assistant section (status, create/delete)
+    - Connected Services section (Google Calendar, Gmail, Drive OAuth)
+    - Usage section (messages, credits, account info)
+    - Profile dropdown in sidebar footer (settings, sign out)
 - Stripe Checkout redirect (from /checkout endpoint)
 - All API calls go to FastAPI backend
 - Uses Catalyst UI components (Button, Badge, Sidebar, Dropdown, etc.)
@@ -745,6 +853,27 @@ pnpm dev  # port 3001
   - [x] Section-based content switching
   - [x] Connected Services UI with connect/disconnect buttons
   - [x] Responsive mobile navigation (hamburger menu)
+- [x] **Browser support (Chromium)**:
+  - [x] Custom Docker image `yourclaw-openclaw:latest` with Chromium pre-installed
+  - [x] `infra/docker/Dockerfile` — node:22-bookworm + Chromium + Puppeteer deps
+  - [x] `infra/docker/build.sh` — build script for host server
+  - [x] Browser config in openclaw.json (`defaultProfile: "openclaw"`, `headless: true`, `noSandbox: true`)
+  - [x] Verified working: OpenClaw can browse web, take screenshots, automate pages
+- [x] **Model selection**:
+  - [x] `supabase/migrations/003_assistant_model.sql` — model column on assistants table
+  - [x] `services/api/app/schemas.py` — AVAILABLE_MODELS, AssistantUpdateInput
+  - [x] `services/api/app/routers/assistants.py` — PATCH endpoint for model updates
+  - [x] `services/api/app/worker.py` — fetches model from DB, passes to container
+  - [x] `apps/web/src/lib/api.ts` — model constants, updateAssistant API call
+  - [x] `apps/web/src/app/dashboard/page.tsx` — model selector cards UI
+  - [x] Changing model triggers reprovisioning
+- [x] **Full OpenClaw configuration**:
+  - [x] `tools.profile: "full"` — all tools enabled
+  - [x] `contextTokens: 200000` — max context for Claude
+  - [x] `thinkingDefault: "low"` — extended thinking enabled
+  - [x] `contextPruning: adaptive` — auto-manage long conversations
+  - [x] `web.search/fetch enabled` — web access
+  - [x] `media.image enabled` — image analysis
 
 ### WhatsApp: Sandbox vs Production Mode (IMPORTANT)
 
@@ -803,9 +932,37 @@ else:
    - [x] Frontend: "Connected Services" UI in dashboard (sidebar layout)
    - [ ] Test with real Google OAuth credentials
 2. **Wait for Meta WhatsApp approval** (production number `+15557589499`)
-3. **Marketing site** (`/apps/marketing`):
-   - [ ] Competitor scan
-   - [ ] Marketing pages: Hero, How It Works, Pricing, FAQ
+3. **Marketing site**: ✅ DONE (consolidated into `/apps/web`)
+   - [x] Competitor analysis (15+ competitors analyzed in `/docs/competitors.md`)
+   - [x] Landing page at `/` with hero, how it works, features, pricing, FAQ
+   - [x] Features page at `/features` with integrations + capabilities
+   - [x] Pricing page at `/pricing` with comparison table + FAQ
+   - [x] Shared marketing components (header, footer)
+   - [x] Updated login/onboarding pages to match new design
+   - [x] **Dark theme redesign** with premium aesthetics:
+     - Dark zinc-950 background throughout
+     - Animated gradient orbs and pulse effects
+     - Mouse-following gradient cursor effect
+     - Spotlight cards with mouse tracking
+     - Tilt effect on interactive elements (pricing card, phone mockup)
+     - Premium iPhone mockup with Dynamic Island
+     - Calendar conversation demo (view meetings → reschedule → confirmation)
+     - Typing indicator animation with progressive message reveal
+     - OpenClaw branding integrated throughout
+     - Glassmorphism + gradient borders on cards
+     - Smooth reveal animations on scroll
+     - Grid pattern background overlay
+   - [x] **Interactive hero section** with instant setup:
+     - AI model selector (Claude active, GPT-4/Gemini "coming soon")
+     - Phone number input with US formatting
+     - "Continue with Google" button triggers OAuth flow
+     - Stores phone/model in localStorage for post-auth processing
+     - All CTAs scroll to top (interactive setup)
+   - [x] **Use cases marquee section**:
+     - 24 use case pills from OpenClaw capabilities
+     - 3 rows with different scroll directions/speeds
+     - Animated marquee with pause on hover
+     - Mix of filled and dashed-outline styles
 4. **Production deployment**:
    - [ ] Deploy API to production (Hetzner or similar)
    - [ ] Deploy frontend to Vercel

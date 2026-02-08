@@ -179,6 +179,11 @@ async def process_job(job: dict) -> None:
         if integrations:
             logger.info(f"User {user_id} has integrations: {list(integrations.keys())}")
 
+        # Get user's selected model
+        assistant = await db.select("assistants", filters={"user_id": user_id}, single=True)
+        model = assistant.get("model", "anthropic/claude-sonnet-4-5-20250929") if assistant else "anthropic/claude-sonnet-4-5-20250929"
+        logger.info(f"User {user_id} selected model: {model}")
+
         # Create container
         container_id = await container_service.create_container(
             user_id=user_id,
@@ -186,6 +191,7 @@ async def process_job(job: dict) -> None:
             gateway_token=gateway_token,
             anthropic_api_key=anthropic_key,
             integrations=integrations,
+            model=model,
         )
 
         # Wait for container to be ready

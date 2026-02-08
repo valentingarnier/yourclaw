@@ -20,14 +20,33 @@ class PhoneInput(BaseModel):
 
 # --- Assistant ---
 
+# Available models for user selection
+AVAILABLE_MODELS = [
+    "anthropic/claude-sonnet-4-5-20250929",
+    "anthropic/claude-opus-4-5-20251101",
+    "anthropic/claude-haiku-4-5-20251001",
+]
+DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+
+
 class AssistantResponse(BaseModel):
     status: str
+    model: str = DEFAULT_MODEL
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
+class AssistantCreateInput(BaseModel):
+    model: str = Field(default=DEFAULT_MODEL, description="OpenClaw model identifier")
+
+
+class AssistantUpdateInput(BaseModel):
+    model: str = Field(..., description="OpenClaw model identifier")
+
+
 class AssistantCreateResponse(BaseModel):
     status: str  # PROVISIONING
+    model: str = DEFAULT_MODEL
 
 
 # --- Checkout / Subscription ---
