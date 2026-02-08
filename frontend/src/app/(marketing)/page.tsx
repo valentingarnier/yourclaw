@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import {
   SparklesIcon,
   ClockIcon,
@@ -67,8 +66,8 @@ function HeroSection() {
       name: "Claude",
       provider: "Anthropic",
       available: true,
-      color: "from-[#D97757] to-[#C46644]",
-      icon: <span className="text-sm font-bold">A</span>,
+      color: "from-white to-zinc-100",
+      icon: <img src="/claude-logo.png" alt="Claude" className="w-5 h-5 object-contain" />,
     },
     {
       id: "openai" as const,
@@ -76,11 +75,7 @@ function HeroSection() {
       provider: "OpenAI",
       available: false,
       color: "from-[#10A37F] to-[#0D8A6A]",
-      icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364l2.0201-1.1685a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z" />
-        </svg>
-      ),
+      icon: <img src="/openai-logo.png" alt="OpenAI" className="w-5 h-5 object-contain" />,
     },
     {
       id: "gemini" as const,
@@ -88,11 +83,7 @@ function HeroSection() {
       provider: "Google",
       available: false,
       color: "from-[#4285F4] to-[#34A853]",
-      icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zm0 3.6c2.34 0 4.464.936 6.012 2.448L12 12V3.6zm-8.4 8.4c0-2.34.936-4.464 2.448-6.012L12 12H3.6zm8.4 8.4c-2.34 0-4.464-.936-6.012-2.448L12 12v8.4zm0-8.4l6.012 6.012A8.352 8.352 0 0112 20.4V12zm8.4 0h-8.4l6.012-6.012A8.352 8.352 0 0120.4 12z" />
-        </svg>
-      ),
+      icon: <img src="/gemini-logo.png" alt="Gemini" className="w-5 h-5 object-contain" />,
     },
   ];
 
@@ -237,12 +228,12 @@ function HeroSection() {
                         onClick={() => model.available && setSelectedModel(model.id)}
                         disabled={!model.available}
                         className={clsx(
-                          "relative p-3 rounded-xl border transition-all duration-200",
+                          "relative p-3 rounded-xl border transition-all duration-200 shadow-lg shadow-black/20",
                           model.available
                             ? selectedModel === model.id
-                              ? "border-emerald-500 bg-emerald-500/10"
-                              : "border-white/10 bg-white/5 hover:border-white/20"
-                            : "border-white/5 bg-white/[0.02] cursor-not-allowed opacity-50"
+                              ? "border-emerald-500 bg-emerald-500/10 shadow-emerald-500/20"
+                              : "border-white/10 bg-white/5 hover:border-white/20 hover:shadow-xl hover:shadow-black/30"
+                            : "border-white/5 bg-white/[0.02] cursor-not-allowed opacity-50 shadow-none"
                         )}
                       >
                         {!model.available && (
@@ -361,7 +352,7 @@ function TimeComparisonSection() {
     { task: "Rent a cloud server (VPS)", time: "15 min" },
     { task: "Set up SSH and security", time: "10 min" },
     { task: "Install Node.js & dependencies", time: "10 min" },
-    { task: "Install and configure AI agent", time: "15 min" },
+    { task: "Install and configure OpenClaw", time: "15 min" },
     { task: "Connect to WhatsApp", time: "10 min" },
     { task: "Test and debug setup", time: "20 min" },
   ];
@@ -675,10 +666,10 @@ function IPhoneMockup() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const conversation = [
-    { type: "user", text: "What's on my calendar today?" },
-    { type: "ai", text: "You have 3 meetings today:\n\n• 10:00 AM — Team standup\n• 2:00 PM — Design review with Sarah\n• 4:30 PM — Client call with Acme Inc" },
-    { type: "user", text: "Move the design review to tomorrow at the same time" },
-    { type: "ai", text: "Done! I've rescheduled your design review with Sarah to tomorrow at 2:00 PM. I've also sent a calendar update to Sarah." },
+    { type: "user", text: "What's on my calendar today?", time: "9:41 AM" },
+    { type: "ai", text: "You have 3 meetings today:\n\n• 10:00 AM — Team standup\n• 2:00 PM — Design review with Sarah\n• 4:30 PM — Client call with Acme Inc", time: "9:41 AM" },
+    { type: "user", text: "Move the design review to tomorrow at the same time", time: "9:42 AM" },
+    { type: "ai", text: "Done! I've rescheduled your design review with Sarah to tomorrow at 2:00 PM. I've also sent a calendar update to Sarah.", time: "9:42 AM" },
   ];
 
   useEffect(() => {
@@ -706,27 +697,17 @@ function IPhoneMockup() {
 
         {/* Screen */}
         <div className="relative bg-zinc-900 rounded-[3rem] overflow-hidden">
-          {/* Status bar */}
-          <div className="flex items-center justify-between px-8 pt-14 pb-2 text-white text-xs">
-            <span>9:41</span>
-            <div className="flex items-center gap-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 3c-4.97 0-9 4.03-9 9v7c0 1.1.9 2 2 2h4v-8H5v-1c0-3.87 3.13-7 7-7s7 3.13 7 7v1h-4v8h4c1.1 0 2-.9 2-2v-7c0-4.97-4.03-9-9-9z" />
-              </svg>
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17 4h-3V2h-4v2H7v18h10V4z" />
-              </svg>
-            </div>
-          </div>
+          {/* Status bar - minimal, just for the notch */}
+          <div className="h-12" />
 
           {/* WhatsApp header */}
-          <div className="bg-[#1F2C34] px-4 py-3 flex items-center gap-3 border-b border-white/5">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center">
-              <span className="text-zinc-900 font-bold text-sm">YC</span>
+          <div className="bg-[#1F2C34] px-3 py-2 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center">
+              <span className="text-zinc-900 font-bold text-sm">Y</span>
             </div>
             <div className="flex-1">
-              <p className="text-white font-semibold text-sm">YourClaw</p>
-              <p className="text-emerald-400 text-xs">online</p>
+              <p className="text-white font-semibold text-xs">YourClaw</p>
+              <p className="text-emerald-400 text-[10px]">online</p>
             </div>
           </div>
 
@@ -761,7 +742,7 @@ function IPhoneMockup() {
                   "text-[10px] text-zinc-500 mt-1 flex items-center gap-1",
                   msg.type === "user" ? "justify-end" : ""
                 )}>
-                  <span>9:41 AM</span>
+                  <span>{msg.time}</span>
                   {msg.type === "user" && (
                     <svg className="w-4 h-3 text-[#53BDEB]" viewBox="0 0 16 11" fill="none">
                       <path d="M11.071 0.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.405-2.272a.463.463 0 0 0-.336-.136.475.475 0 0 0-.343.153.482.482 0 0 0-.127.34.464.464 0 0 0 .149.323l2.758 2.588a.454.454 0 0 0 .312.127.469.469 0 0 0 .357-.17l6.545-8.076a.476.476 0 0 0 .088-.381.472.472 0 0 0-.123-.208z" fill="currentColor"/>
