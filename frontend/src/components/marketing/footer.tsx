@@ -83,7 +83,7 @@ export function MarketingFooter() {
               </li>
               <li>
                 <a
-                  href="mailto:support@yourclaw.com"
+                  href="mailto:hello@yourclaw.dev"
                   className="text-sm text-zinc-500 hover:text-white transition-colors"
                 >
                   Support
@@ -97,20 +97,20 @@ export function MarketingFooter() {
             <h3 className="text-sm font-semibold text-white mb-4">Legal</h3>
             <ul className="space-y-3">
               <li>
-                <a
-                  href="#"
+                <Link
+                  href="/privacy"
                   className="text-sm text-zinc-500 hover:text-white transition-colors"
                 >
                   Privacy Policy
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  href="/terms"
                   className="text-sm text-zinc-500 hover:text-white transition-colors"
                 >
                   Terms of Service
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
