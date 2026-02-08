@@ -12,6 +12,9 @@ import {
 import clsx from "clsx";
 import { MouseGradient, TiltCard } from "@/components/marketing/mouse-gradient";
 
+// Note: metadata needs to be in a separate file for client components
+// Or we can use generateMetadata in a server component wrapper
+
 export default function PricingPage() {
   return (
     <div className="relative">
@@ -55,11 +58,11 @@ function PricingCards() {
   const includedFeatures = [
     "Unlimited WhatsApp messages",
     "$10 in AI credits included",
-    "Google Calendar integration",
-    "Gmail integration",
-    "Google Drive integration",
+    "Web browsing & research",
+    "File creation & analysis",
+    "Code execution",
     "24/7 availability",
-    "Context memory",
+    "Persistent memory",
     "Priority support",
   ];
 
@@ -143,18 +146,17 @@ function WhatsIncluded() {
   return (
     <section className="py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        {/* OpenClaw + Claude callout */}
         <div className="relative bg-zinc-900 rounded-2xl p-8 text-center border border-white/5 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-purple-500/5" />
 
           <div className="relative z-10">
             <div className="flex items-center justify-center gap-4 mb-6">
-              {/* OpenClaw */}
+              {/* YourClaw */}
               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-800 border border-white/10">
                 <div className="w-6 h-6 rounded bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center">
                   <span className="text-zinc-900 font-bold text-xs">Y</span>
                 </div>
-                <span className="text-sm text-zinc-300">OpenClaw</span>
+                <span className="text-sm text-zinc-300">YourClaw</span>
               </div>
               <span className="text-zinc-600">+</span>
               {/* Claude */}
@@ -167,10 +169,11 @@ function WhatsIncluded() {
             </div>
 
             <h3 className="text-xl font-bold text-white mb-2">
-              Enterprise-grade AI infrastructure
+              Full AI power, zero complexity
             </h3>
             <p className="text-zinc-400 max-w-md mx-auto">
-              Built on OpenClaw, the open-source AI agent framework. Powered by Claude, one of the most capable AI models available.
+              Powered by Claude — one of the world's most capable AI models.
+              We handle all the infrastructure so you just text and get things done.
             </p>
           </div>
         </div>

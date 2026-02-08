@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the YourClaw OpenClaw container image on the host server
+# Build YourClaw Docker images on the host server
 #
 # Usage:
 #   1. Copy this directory to the host server
@@ -11,7 +11,22 @@
 
 set -e
 
-echo "Building yourclaw-openclaw image..."
-docker build -t yourclaw-openclaw:latest .
+echo "=== Building YourClaw Docker Images ==="
+echo ""
 
-echo "Done! Image built: yourclaw-openclaw:latest"
+# Build gateway image (lightweight, no browser)
+echo "[1/2] Building yourclaw-openclaw:latest (gateway)..."
+docker build -t yourclaw-openclaw:latest -f Dockerfile .
+echo "Done!"
+echo ""
+
+# Build browser sandbox image (Chromium for browser tool)
+echo "[2/2] Building openclaw-sandbox-browser:bookworm-slim (browser sandbox)..."
+docker build -t openclaw-sandbox-browser:bookworm-slim -f Dockerfile.sandbox-browser .
+echo "Done!"
+echo ""
+
+echo "=== All images built ==="
+echo ""
+echo "Images:"
+docker images | grep -E "yourclaw-openclaw|openclaw-sandbox-browser"

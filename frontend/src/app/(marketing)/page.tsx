@@ -3,9 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
-  CalendarIcon,
-  EnvelopeIcon,
-  FolderIcon,
   SparklesIcon,
   ClockIcon,
   BoltIcon,
@@ -46,12 +43,11 @@ export default function HomePage() {
     <div className="relative">
       <MouseGradient />
       <HeroSection />
+      <TimeComparisonSection />
       <UseCasesMarquee />
-      <LogoCloud />
       <FeaturesSection />
       <PhoneDemoSection />
       <HowItWorks />
-      <IntegrationsSection />
       <PricingSection />
       <FAQSection />
       <CTASection />
@@ -190,20 +186,20 @@ function HeroSection() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <span className="text-sm text-zinc-400">
-                Powered by <span className="text-white font-medium">OpenClaw</span>
+                Setup in <span className="text-white font-medium">under 2 minutes</span>
               </span>
             </div>
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6 animate-reveal" style={{ animationDelay: "0.1s" }}>
-              <span className="text-white">Your AI assistant</span>
+              <span className="text-white">Your personal AI</span>
               <br />
               <span className="gradient-text text-glow">on WhatsApp</span>
             </h1>
 
             {/* Subheadline */}
             <p className="text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0 mb-8 animate-reveal" style={{ animationDelay: "0.2s" }}>
-              Manage your calendar, read emails, and handle files — all through natural conversation. No app to download. Ready in 2 minutes.
+              A full-power AI assistant that works 24/7 — research, write, analyze, and automate tasks. Just text it. No apps, no setup, no coding.
             </p>
 
             {/* Stats */}
@@ -364,6 +360,96 @@ function HeroSection() {
   );
 }
 
+function TimeComparisonSection() {
+  const diySteps = [
+    { task: "Rent a cloud server (VPS)", time: "15 min" },
+    { task: "Set up SSH and security", time: "10 min" },
+    { task: "Install Node.js & dependencies", time: "10 min" },
+    { task: "Install and configure AI agent", time: "15 min" },
+    { task: "Connect to WhatsApp", time: "10 min" },
+    { task: "Test and debug setup", time: "20 min" },
+  ];
+
+  const totalDiyTime = 80; // minutes
+
+  return (
+    <section className="py-24 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Save <span className="gradient-text">hours of setup</span>
+          </h2>
+          <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
+            Setting up your own AI assistant is complex. We handle everything so you don't have to.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* DIY Column */}
+          <div className="relative p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Do it yourself</h3>
+              <span className="px-3 py-1 rounded-full bg-red-500/10 text-red-400 text-sm font-medium">
+                ~{totalDiyTime} min
+              </span>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {diySteps.map((step, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                  <span className="text-zinc-400 text-sm">{step.task}</span>
+                  <span className="text-zinc-500 text-sm">{step.time}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
+              <p className="text-sm text-red-400">
+                <span className="font-semibold">Non-technical?</span> Multiply by 10× — you'll need to learn each step first.
+              </p>
+            </div>
+          </div>
+
+          {/* YourClaw Column */}
+          <div className="relative p-6 rounded-2xl bg-gradient-to-b from-emerald-500/10 to-zinc-900/50 border border-emerald-500/20">
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">With YourClaw</h3>
+              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-sm font-medium">
+                &lt;2 min
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="text-6xl font-bold gradient-text mb-4">2</div>
+              <p className="text-xl text-white mb-2">minutes</p>
+              <p className="text-zinc-400 text-center">
+                Enter your phone, sign in with Google, done.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                "No server to manage",
+                "No technical knowledge required",
+                "No maintenance or updates",
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <CheckIcon className="w-3 h-3 text-emerald-400" />
+                  </div>
+                  <span className="text-zinc-300 text-sm">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function UseCasesMarquee() {
   const useCases = [
     { icon: BellIcon, text: "Set reminders and follow-ups" },
@@ -402,10 +488,10 @@ function UseCasesMarquee() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
         <div className="text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            What can OpenClaw do for you?
+            What can <span className="gradient-text">YourClaw</span> do for you?
           </h2>
           <p className="text-lg text-zinc-400">
-            One assistant, thousands of use cases
+            One assistant, endless possibilities
           </p>
         </div>
       </div>
@@ -464,37 +550,6 @@ function UseCasePill({
   );
 }
 
-function LogoCloud() {
-  return (
-    <section className="py-16 border-y border-white/5">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p className="text-center text-sm text-zinc-500 mb-8">
-          Integrates with your favorite tools
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-16 opacity-60">
-          <div className="flex items-center gap-2 text-zinc-400">
-            <CalendarIcon className="w-6 h-6" />
-            <span className="font-medium">Google Calendar</span>
-          </div>
-          <div className="flex items-center gap-2 text-zinc-400">
-            <EnvelopeIcon className="w-6 h-6" />
-            <span className="font-medium">Gmail</span>
-          </div>
-          <div className="flex items-center gap-2 text-zinc-400">
-            <FolderIcon className="w-6 h-6" />
-            <span className="font-medium">Google Drive</span>
-          </div>
-          <div className="flex items-center gap-2 text-zinc-400">
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
-            <span className="font-medium">WhatsApp</span>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function FeaturesSection() {
   const features = [
@@ -529,11 +584,11 @@ function FeaturesSection() {
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            An AI that actually{" "}
-            <span className="gradient-text">gets things done</span>
+            Not a chatbot.{" "}
+            <span className="gradient-text">A real assistant.</span>
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            Built on OpenClaw — the open-source AI agent framework trusted by developers worldwide.
+            YourClaw can browse the web, run code, create files, and take action — things regular chatbots can't do.
           </p>
         </div>
 
@@ -568,20 +623,20 @@ function PhoneDemoSection() {
           {/* Left: Content */}
           <div>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
-              Manage your day{" "}
+              Get things done{" "}
               <span className="gradient-text">without leaving WhatsApp</span>
             </h2>
             <p className="text-lg text-zinc-400 mb-8">
-              Connect your Google account and let your AI handle the rest.
-              Check meetings, reschedule events, find emails — all through natural conversation.
+              Just text your assistant like you'd text a friend.
+              Research, analyze, write, plan — all through natural conversation.
             </p>
 
             <div className="space-y-4">
               {[
-                "View and manage your calendar",
-                "Search and summarize emails",
-                "Access files from Google Drive",
-                "Set reminders and follow-ups",
+                "Research any topic in depth",
+                "Write emails, reports, and content",
+                "Analyze documents and data",
+                "Plan projects and track tasks",
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -806,92 +861,14 @@ function HowItWorks() {
   );
 }
 
-function IntegrationsSection() {
-  const integrations = [
-    {
-      name: "Google Calendar",
-      icon: CalendarIcon,
-      description: "View, create, and manage events",
-      color: "from-blue-500 to-blue-600",
-    },
-    {
-      name: "Gmail",
-      icon: EnvelopeIcon,
-      description: "Search, read, and compose emails",
-      color: "from-red-500 to-red-600",
-    },
-    {
-      name: "Google Drive",
-      icon: FolderIcon,
-      description: "Access and search your files",
-      color: "from-yellow-500 to-orange-500",
-    },
-  ];
-
-  return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-zinc-900/50">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Connect your{" "}
-            <span className="gradient-text">Google workspace</span>
-          </h2>
-          <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            One-click OAuth to connect your accounts. Your assistant gets superpowers.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          {integrations.map((integration, i) => (
-            <SpotlightCard
-              key={i}
-              className="group relative p-8 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all duration-300 card-hover text-center"
-            >
-              <div className={`inline-flex w-16 h-16 rounded-2xl bg-gradient-to-br ${integration.color} items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                <integration.icon className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-2">
-                {integration.name}
-              </h3>
-              <p className="text-zinc-400">
-                {integration.description}
-              </p>
-            </SpotlightCard>
-          ))}
-        </div>
-
-        {/* OpenClaw callout */}
-        <div className="mt-16 text-center">
-          <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-zinc-900 border border-white/5">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center">
-              <SparklesIcon className="w-5 h-5 text-zinc-900" />
-            </div>
-            <div className="text-left">
-              <p className="text-white font-medium">Built on OpenClaw</p>
-              <p className="text-sm text-zinc-500">Open-source AI agent framework</p>
-            </div>
-            <a
-              href="https://github.com/anthropics/claude-code"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-4 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
-            >
-              Learn more →
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function PricingSection() {
   const features = [
     "Unlimited messages",
     "$10 in monthly AI credits",
-    "Google Calendar integration",
-    "Gmail integration",
-    "Google Drive integration",
+    "Web browsing & research",
+    "File creation & analysis",
+    "Code execution",
     "24/7 availability",
     "Priority support",
   ];
@@ -957,27 +934,27 @@ function FAQSection() {
   const faqs = [
     {
       question: "What is YourClaw?",
-      answer: "YourClaw gives you a personal AI assistant on WhatsApp. Powered by Claude AI and built on OpenClaw, it can manage your calendar, read emails, and help with any task — all through simple chat.",
+      answer: "YourClaw gives you a personal AI assistant on WhatsApp. Powered by Claude — one of the world's most capable AI models — it can research, write, analyze, code, and help with any task. All through simple chat.",
     },
     {
       question: "How is this different from ChatGPT?",
-      answer: "Same AI power, but on WhatsApp — the app you already use. Plus, YourClaw connects to your Google Calendar, Gmail, and Drive, so it can actually take actions for you.",
+      answer: "YourClaw is a full AI agent, not just a chatbot. It can browse the web, run code, create files, and take real actions. Plus, it's on WhatsApp — no app switching, no browser tabs. Just text.",
     },
     {
       question: "Do I need to download an app?",
-      answer: "No app needed. Everything happens through WhatsApp. Just sign up, enter your phone number, and start chatting.",
+      answer: "No app needed. Everything happens through WhatsApp. Just sign up, enter your phone number, and start chatting. Your assistant texts you when it's ready.",
     },
     {
       question: "Is my data safe?",
-      answer: "Yes. Your conversations and connected data are encrypted. We never sell your data or use it to train models. Each user gets their own isolated AI instance.",
+      answer: "Yes. Each user gets their own isolated AI instance running on dedicated infrastructure. Your data is encrypted, never shared, and never used to train models.",
     },
     {
       question: "What are AI credits?",
       answer: "$20/month includes $10 in AI credits, which covers typical usage (hundreds of messages). Need more? Add your own Anthropic API key for unlimited usage at cost.",
     },
     {
-      question: "What is OpenClaw?",
-      answer: "OpenClaw is the open-source AI agent framework that powers YourClaw. It's trusted by thousands of developers to build AI applications. We handle the infrastructure so you don't have to.",
+      question: "What can the assistant actually do?",
+      answer: "Research topics online, write content and emails, analyze documents, run code, create files, compare products, summarize long texts, and much more. If you can describe it, it can probably do it.",
     },
   ];
 

@@ -12,10 +12,10 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 - **Containers**: Docker on shared Hetzner host server (NOT VMs). One container per user.
 - **WhatsApp**: Single Twilio number, route inbound by sender phone (`From` field). Uses Twilio API (NOT Openclaw's built-in Baileys integration).
 - **Openclaw API**: `POST /v1/chat/completions` on port 18789 per container (OpenAI-compatible, enabled via gateway config)
-- **Container image**: Custom `yourclaw-openclaw:latest` with Chromium for browser tool support
+- **Container image**: Custom `yourclaw-openclaw:latest` (lightweight gateway) + `openclaw-sandbox-browser:bookworm-slim` (browser tool)
 - **Openclaw install**: Pre-installed in container image, starts with `openclaw gateway`
 - **Job queue**: DB-backed (`provisioning_jobs` table + Python worker polling). No Redis/Celery for MVP. Low traffic assumed.
-- **LLM provider**: Anthropic only (modular design for future providers). Shared API key with credits + BYOK.
+- **LLM provider**: Anthropic only (modular design for future providers). Shared API key for MVP, BYOK ready.
 - **Openclaw tools**: ALL tools enabled. No restrictions. Full power of Openclaw.
 - **Payments**: Stripe Checkout for subscription. Required before assistant creation.
 - **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true` for local dev without real credentials.
@@ -37,7 +37,7 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 13. Backend sends "Your assistant is ready! Say hi." WhatsApp via Twilio
 14. User messages the Twilio WhatsApp number
 15. Twilio webhook → backend routes to user's container → gets reply → sends back
-16. Usage tracked per day. Rate limits enforced. Credits decremented.
+16. Usage tracked per day. Rate limits enforced. [TODO: implement rate limits]
 ```
 
 ## Request Flows
@@ -49,8 +49,7 @@ User WhatsApp → Twilio → POST /api/v1/webhooks/twilio/whatsapp (FastAPI)
   → parse Form data: From, Body, MessageSid, ProfileName, NumMedia, MediaUrl0
   → lookup user by From phone (strip "whatsapp:" prefix, match E.164)
   → check assistant status == READY
-  → check rate limits (msg/min) + daily caps (msg/day)
-  → check credits remaining (shared key) or BYOK active
+  → check rate limits (msg/min) + daily caps (msg/day) [TODO: implement]
   → POST /v1/chat/completions on user container (host_ip:user_port)
     → Authorization: Bearer <gateway_token>
     → body: { "model": "openclaw:main", "messages": [{"role": "user", "content": "<body>"}] }
@@ -58,7 +57,6 @@ User WhatsApp → Twilio → POST /api/v1/webhooks/twilio/whatsapp (FastAPI)
   → send reply via Twilio REST API (client.messages.create)
   → record in messages table (both inbound + outbound)
   → increment usage_daily counters
-  → if shared key: decrement user_credits.used_cents (estimate token cost)
   → return empty TwiML: <Response></Response>
 ```
 
@@ -78,6 +76,7 @@ Worker loop (poll every 5s):
   → docker run -d --name yourclaw-{user_id} \
       -p {port}:18789 \
       --memory=2g --cpus=1 \
+      -v /var/run/docker.sock:/var/run/docker.sock \
       -v /data/yourclaw/{user_id}/config:/root/.openclaw \
       -v /data/yourclaw/{user_id}/workspace:/root/.openclaw/workspace \
       yourclaw-openclaw:latest
@@ -113,11 +112,9 @@ Stripe webhook → POST /api/v1/webhooks/stripe
     → checkout.session.completed:
       → extract user_id from metadata
       → create subscription record (status=ACTIVE)
-      → create user_credits (total_cents=1000, used_cents=0)
       → auto-trigger provisioning (create provisioning_job)
     → invoice.payment_succeeded:
       → renew subscription period
-      → reset monthly credits (used_cents=0)
     → invoice.payment_failed:
       → update subscription status=PAST_DUE
       → (container keeps running for grace period)
@@ -129,16 +126,16 @@ Stripe webhook → POST /api/v1/webhooks/stripe
 
 ## Repo Structure
 ```
-/apps/web                  — Next.js app (marketing + authenticated routes)
-  /apps/web/src/app/(marketing)/     — Marketing pages (/, /features, /pricing)
-  /apps/web/src/app/login/           — Login page (Google OAuth)
-  /apps/web/src/app/onboarding/      — Onboarding page (phone number input)
-  /apps/web/src/app/dashboard/       — Main dashboard with sidebar layout
-  /apps/web/src/components/          — Catalyst UI components (button, sidebar, etc.)
-  /apps/web/src/components/marketing/ — Marketing components (header, footer, mouse-gradient)
-  /apps/web/src/lib/api.ts           — API client with types
-/services/api              — FastAPI backend
-  /services/api/app/
+/frontend                  — Next.js app (marketing + authenticated routes)
+  /frontend/src/app/(marketing)/     — Marketing pages (/, /pricing, /privacy, /terms)
+  /frontend/src/app/login/           — Login page (Google OAuth)
+  /frontend/src/app/onboarding/      — Onboarding page (phone number input)
+  /frontend/src/app/dashboard/       — Main dashboard with sidebar layout
+  /frontend/src/components/          — Catalyst UI components (button, sidebar, etc.)
+  /frontend/src/components/marketing/ — Marketing components (header, footer, mouse-gradient)
+  /frontend/src/lib/api.ts           — API client with types
+/backend                   — FastAPI backend
+  /backend/app/
     main.py                — FastAPI app, CORS, middleware
     config.py              — Settings from env vars (pydantic BaseSettings)
     auth.py                — Supabase JWT validation middleware
@@ -250,7 +247,8 @@ subscriptions (
   UNIQUE(user_id)
 )
 
--- API credit balance (shared key usage)
+-- API credit balance (NOT CURRENTLY USED - table exists but no logic implemented)
+-- TODO: Decide if we're using credits system or just rate limits for MVP
 user_credits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -326,15 +324,16 @@ POST   /assistants                    — create/recreate assistant (idempotent 
 GET    /assistants                    — get assistant status + basic info
   → returns { "status": "READY", "created_at": "...", "last_message_at": "..." }
 DELETE /assistants                    — destroy assistant + container
-  → stops container, removes config, sets status=NONE
+  → sets status=NONE (keeps container_id for worker cleanup)
+  → worker detects status=NONE and stops container via SSH
 
 # Payments
 POST   /checkout                      — create Stripe Checkout session
   → returns { "checkout_url": "https://checkout.stripe.com/..." }
-GET    /subscription                  — get subscription status + credits remaining
-  → returns { "status": "ACTIVE", "credits_remaining_cents": 750, "current_period_end": "..." }
+GET    /subscription                  — get subscription status
+  → returns { "status": "ACTIVE", "current_period_end": "..." }
 
-# API Keys (BYOK)
+# API Keys (BYOK) - UI not exposed yet
 POST   /api-keys                      — store user's Anthropic key { "provider": "ANTHROPIC", "key": "sk-..." }
   → encrypts with Fernet, stores in DB
   → updates running container config (hot reload if possible, else recreate)
@@ -342,7 +341,7 @@ DELETE /api-keys                      — remove user's key, revert to shared ke
 
 # Usage
 GET    /usage                         — usage stats
-  → returns { "today": { "inbound": 12, "outbound": 12 }, "credits_used_cents": 250, ... }
+  → returns { "today": { "inbound": 12, "outbound": 12 }, ... }
 
 # Webhooks (no auth — validated by signature)
 POST   /webhooks/twilio/whatsapp      — Twilio inbound WhatsApp
@@ -356,7 +355,8 @@ POST   /webhooks/stripe               — Stripe events
 
 ## Openclaw Container Config
 
-Each container gets `~/.openclaw/openclaw.json` with full capabilities enabled:
+Each container gets `~/.openclaw/openclaw.json` with full capabilities including browser automation via Playwright MCP.
+
 ```json
 {
   "agents": {
@@ -367,10 +367,6 @@ Each container gets `~/.openclaw/openclaw.json` with full capabilities enabled:
       "contextTokens": 200000,
       "thinkingDefault": "low",
       "blockStreamingDefault": "on",
-      "contextPruning": {
-        "mode": "adaptive",
-        "hardClearRatio": 0.5
-      },
       "compaction": {
         "memoryFlush": { "enabled": true }
       }
@@ -399,21 +395,56 @@ Each container gets `~/.openclaw/openclaw.json` with full capabilities enabled:
       "image": { "enabled": true }
     }
   },
-  "browser": {
-    "enabled": true,
-    "defaultProfile": "openclaw",
-    "headless": true,
-    "noSandbox": true,
-    "attachOnly": false,
-    "profiles": {
-      "openclaw": {
-        "cdpPort": 18800,
-        "color": "#FF4500"
+  "plugins": {
+    "entries": {
+      "openclaw-mcp-adapter": {
+        "enabled": true,
+        "config": {
+          "servers": [
+            {
+              "name": "playwright",
+              "transport": "stdio",
+              "command": "npx",
+              "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless"],
+              "env": {
+                "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH": "/usr/bin/chromium",
+                "CHROME_PATH": "/usr/bin/chromium"
+              }
+            }
+          ]
+        }
       }
     }
+  },
+  "commands": {
+    "restart": true
   }
 }
 ```
+
+### Browser Automation via Playwright MCP
+
+Browser automation uses Microsoft's [Playwright MCP server](https://github.com/microsoft/playwright-mcp) via the `openclaw-mcp-adapter` plugin.
+
+**How it works:**
+1. OpenClaw loads the `openclaw-mcp-adapter` plugin at startup
+2. Plugin connects to Playwright MCP server via stdio
+3. Playwright uses the system Chromium (installed in container)
+4. 22 browser tools are registered: navigate, click, fill_form, screenshot, etc.
+
+**Available browser tools:**
+| Tool | Description |
+|------|-------------|
+| `playwright_browser_navigate` | Go to a URL |
+| `playwright_browser_click` | Click an element |
+| `playwright_browser_fill_form` | Fill form fields |
+| `playwright_browser_type` | Type text |
+| `playwright_browser_snapshot` | Get page accessibility tree |
+| `playwright_browser_take_screenshot` | Capture screenshot |
+| `playwright_browser_tabs` | Manage browser tabs |
+| + 15 more | hover, drag, select, evaluate JS, etc. |
+
+**Key advantage:** Uses accessibility tree, not screenshots — more reliable and doesn't require vision models.
 
 ### Configuration Breakdown
 
@@ -422,15 +453,11 @@ Each container gets `~/.openclaw/openclaw.json` with full capabilities enabled:
 | `agents.defaults.contextTokens` | 200000 | Maximum context window for Claude models |
 | `agents.defaults.thinkingDefault` | "low" | Extended thinking for complex tasks |
 | `agents.defaults.blockStreamingDefault` | "on" | Stream responses for better UX |
-| `agents.defaults.contextPruning` | adaptive | Auto-manage token usage in long conversations |
 | `agents.defaults.compaction.memoryFlush` | enabled | Efficient memory management |
 | `tools.profile` | "full" | All tools enabled (fs, runtime, web, messaging) |
 | `tools.web.search/fetch` | enabled | Web search and page fetching |
 | `tools.media.image` | enabled | Image analysis via vision models |
-| `browser.enabled` | true | Headless Chromium for web automation |
-| `browser.defaultProfile` | "openclaw" | Use managed browser (not extension relay) |
-| `browser.headless` | true | Run without display (containerized) |
-| `browser.noSandbox` | true | Required for Docker containers |
+| `plugins.entries.openclaw-mcp-adapter` | enabled | Playwright browser automation |
 
 ### Tool Profiles Reference
 
@@ -446,18 +473,33 @@ Openclaw gateway started with: `openclaw gateway --port 18789 --bind lan`
 
 ### Container Image
 
-Custom image: `yourclaw-openclaw:latest` (built from `infra/docker/Dockerfile`)
+**Single full-featured image:** `yourclaw-openclaw:latest` (from `infra/docker/Dockerfile`)
 
-Base: `node:22-bookworm` with:
-- Chromium browser (for browser tool support)
-- OpenClaw pre-installed globally
-- All Puppeteer dependencies
+Includes:
+- Base: `node:22-bookworm-slim`
+- System: git, curl, ca-certificates
+- Browser: Chromium + all dependencies (fonts, libs)
+- Runtime: OpenClaw, `@playwright/mcp`
+- Plugin: `openclaw-mcp-adapter` (for MCP server integration)
 
-Build on host server:
+**Build and deploy:**
 ```bash
 scp -r infra/docker/ root@$HOST_SERVER_IP:/tmp/yourclaw-docker/
-ssh root@$HOST_SERVER_IP "cd /tmp/yourclaw-docker && chmod +x build.sh && ./build.sh"
+ssh root@$HOST_SERVER_IP "cd /tmp/yourclaw-docker && docker build -t yourclaw-openclaw:latest -f Dockerfile ."
 ```
+
+**For new containers:** Copy the MCP adapter plugin to user config:
+```bash
+mkdir -p /data/yourclaw/{user_id}/config/extensions
+docker run --rm -v /data/yourclaw/{user_id}/config/extensions:/host yourclaw-openclaw:latest \
+  cp -r /root/.openclaw/extensions/openclaw-mcp-adapter /host/
+```
+
+**Common error if Docker CLI missing:**
+```
+[openclaw] Uncaught exception: Error: spawn docker ENOENT
+```
+This means gateway container is missing Docker CLI. Rebuild the image.
 
 ### Container Directory Structure
 ```
@@ -542,18 +584,21 @@ Users can choose their AI model from the dashboard. Available models:
 4. Worker recreates container with new model in config
 5. Container restarts with new model
 
-## MCP Servers / Integrations (KEY DIFFERENTIATOR)
+## MCP Servers / Integrations (PAUSED - Post-Launch)
+
+> **Status**: Backend complete, frontend hidden. Google OAuth not verified for production.
+> Will re-enable after launch when Google OAuth app is verified.
 
 MCP (Model Context Protocol) servers extend Openclaw's capabilities by connecting to external services. This is what makes YourClaw powerful - users get an AI assistant that can actually DO things, not just chat.
 
-### Supported Integrations (MVP)
+### Planned Integrations (Post-Launch)
 | Service | MCP Package | Capability |
 |---------|-------------|------------|
 | Google Calendar | `@anthropic/mcp-server-google-calendar` | Read/write calendar events |
 | Gmail | `@anthropic/mcp-server-gmail` | Read/search/send emails |
 | Google Drive | `@anthropic/mcp-server-google-drive` | Access files and folders |
 
-### Implementation (COMPLETED)
+### Implementation (Backend Complete, UI Hidden)
 
 **Database: `user_integrations` table**
 ```sql
@@ -630,32 +675,50 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxx
 ```
 
 ### Files
-- `services/api/app/routers/oauth.py` - OAuth endpoints
-- `services/api/app/services/container_service.py` - MCP config injection
+- `backend/app/routers/oauth.py` - OAuth endpoints
+- `backend/app/services/container_service.py` - MCP config injection
 - `supabase/migrations/002_user_integrations.sql` - DB migration
 
 ## LLM API Key Strategy
-- **Shared key**: We provide an Anthropic API key. Each user gets $10 credit (1000 cents) after subscribing ($20/mo).
-- **BYOK**: User adds their own Anthropic key in dashboard for unlimited usage. No credit tracking when BYOK is active.
-- **Modular**: `api_keys` table has `provider` column. Only `ANTHROPIC` for MVP.
-- **Key injection**: Set as `ANTHROPIC_API_KEY` env var on the Docker container.
-- **Key switching**: When user adds/removes BYOK key, update container env var (may require container restart).
-- **Encryption**: User keys encrypted with Fernet. Master key in `ENCRYPTION_KEY` env var.
-- **Credit estimation**: Rough token-to-cost mapping. MVP: estimate ~$0.003 per message pair (in+out). Hooks in place for exact Anthropic usage API later.
 
-## Stripe Integration
+### Current State (MVP Launch)
+- **Shared key**: Single Anthropic API key used for all users. Key set as `ANTHROPIC_API_KEY` env var on each container.
+- **No credits system implemented yet**: Website mentions $10 credits but this is NOT built. All users share the same API key with no per-user tracking.
+- **BYOK ready**: `api_keys` table exists for users to add their own key. Not exposed in UI yet.
+
+### TODO: Decide Strategy for 100 Users at Launch
+Options to consider:
+1. **Shared key with rate limits only**: Simple. Use daily message caps (e.g., 100 msg/day). Risk: one user can't exhaust credits for others.
+2. **BYOK required**: Users must bring their own Anthropic key. Lower margin but zero API cost risk.
+3. **Credits system**: Build proper per-user token tracking. More work but matches website promise.
+4. **Hybrid**: Start with shared key + rate limits. Add credits tracking later.
+
+**Recommendation for MVP**: Option 1 (shared key + rate limits). Fast to ship, low risk with 100 users. Revisit when hitting cost issues.
+
+### Technical Details
+- **Key injection**: Set as `ANTHROPIC_API_KEY` env var on the Docker container.
+- **Key switching**: When user adds/removes BYOK key, update container env var (requires container restart).
+- **Encryption**: User keys encrypted with Fernet. Master key in `ENCRYPTION_KEY` env var.
+
+## Stripe Integration (COMPLETE)
 - **Model**: Monthly subscription ($20/mo) via Stripe Checkout
-- **Credits**: $10/mo in API credits included (reset each billing cycle)
 - **Product setup**: One Stripe Product with one Price ($20/month recurring)
 - **Checkout flow**: Backend creates Stripe Checkout Session → frontend redirects → user pays → webhook confirms
 - **Webhook events handled**:
-  - `checkout.session.completed` → create subscription + credits + trigger provisioning
-  - `invoice.payment_succeeded` → renew period, reset credits
+  - `checkout.session.completed` → create subscription + trigger provisioning
+  - `invoice.payment_succeeded` → renew subscription period
   - `invoice.payment_failed` → mark PAST_DUE (grace period, container keeps running)
   - `customer.subscription.deleted` → mark CANCELED, stop container
 - **Webhook security**: Validate `Stripe-Signature` header using `stripe.Webhook.construct_event()`
-- **Idempotency**: Stripe event IDs stored to prevent double-processing
+- **Local testing**: Use Stripe CLI (`stripe listen --forward-to localhost:8000/api/v1/webhooks/stripe`)
+- **Test card**: `4242 4242 4242 4242` with any future date and CVC
 - **Mock mode**: `MOCK_STRIPE=true` skips payment, auto-creates subscription for dev
+
+**Note**: Website mentions "$10 in AI credits" but credits system is NOT implemented. See "LLM API Key Strategy" section for current approach.
+
+**Stripe Test Credentials (configured in .env):**
+- Product: YourClaw Pro ($20/month)
+- Price ID: `price_1SyZSbCFAYv3UO1LWxf67wDW`
 
 ## Environment Variables
 ```
@@ -731,7 +794,7 @@ MOCK_STRIPE=false                   # true: skip payment, auto-create subscripti
 ## Local Dev
 ```bash
 # 1. Clone and install frontend deps
-cd apps/web
+cd frontend
 pnpm install
 
 # 2. Copy env
@@ -740,18 +803,18 @@ cp .env.example .env
 # Set: MOCK_TWILIO=true, MOCK_CONTAINERS=true, MOCK_STRIPE=true
 
 # 3. Install backend deps (uv)
-cd services/api
+cd backend
 uv sync
 
 # 4. Start backend (mock mode)
 MOCK_TWILIO=true MOCK_CONTAINERS=true MOCK_STRIPE=true uv run uvicorn app.main:app --reload --port 8000
 
 # 5. Start worker (mock mode — simulates provisioning)
-cd services/api
+cd backend
 MOCK_CONTAINERS=true uv run python -m app.worker
 
 # 6. Start frontend (includes marketing + app)
-cd apps/web
+cd frontend
 pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc.
 ```
 
@@ -775,31 +838,31 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
 
 ## Agent Responsibilities (for multi-agent builds)
 
-### Frontend Agent — /apps/web
+### Frontend Agent — /frontend
 - Marketing pages (route group `(marketing)`):
-  - `/` — Landing page with hero, how it works, features, pricing, FAQ
-  - `/features` — Full features page with integrations + capabilities
+  - `/` — Landing page with hero, time comparison, features, pricing, FAQ
   - `/pricing` — Pricing page with comparison table + FAQ
+  - `/privacy`, `/terms` — Legal pages
 - Auth + App pages:
   - `/login` — Google sign-in via Supabase
   - `/onboarding` — WhatsApp number input, E.164 validation
   - `/dashboard` — Sidebar layout with sections:
-    - Assistant section (status, create/delete)
-    - Connected Services section (Google Calendar, Gmail, Drive OAuth)
-    - Usage section (messages, credits, account info)
+    - Assistant section (status, create/delete, model selection)
+    - Usage section (messages, account info)
     - Profile dropdown in sidebar footer (settings, sign out)
+    - Connected Services section (HIDDEN - waiting for Google OAuth verification)
 - Stripe Checkout redirect (from /checkout endpoint)
 - All API calls go to FastAPI backend
 - Uses Catalyst UI components (Button, Badge, Sidebar, Dropdown, etc.)
 
-### Backend Agent — /services/api
+### Backend Agent — /backend
 - FastAPI app with all routers and services
 - Supabase JWT auth middleware
 - Stripe Checkout + webhook handling
 - Twilio webhook + message routing
 - Openclaw HTTP API adapter
 - Container provisioning worker
-- Rate limiting + credit tracking
+- Rate limiting (TODO: implement)
 - Encryption service
 
 ## Current Progress
@@ -808,17 +871,17 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
 - [x] Architecture decisions locked (see above)
 - [x] CLAUDE.md written with full spec
 - [x] `.env.example` with all env vars
-- [x] `services/api/pyproject.toml` (uv, all Python deps)
-- [x] `services/api/app/config.py` — Pydantic BaseSettings from env
-- [x] `services/api/app/database.py` — Supabase Data API client (REST, not direct Postgres)
+- [x] `backend/pyproject.toml` (uv, all Python deps)
+- [x] `backend/app/config.py` — Pydantic BaseSettings from env
+- [x] `backend/app/database.py` — Supabase Data API client (REST, not direct Postgres)
 - [x] `supabase/migrations/001_initial_schema.sql` — all 8 tables SQL migration
-- [x] `services/api/app/schemas.py` — Pydantic request/response for all endpoints
-- [x] `services/api/app/auth.py` — Supabase JWT validation middleware (+ DEV_USER_ID bypass)
-- [x] `services/api/app/main.py` — FastAPI app with CORS, health endpoint, routers registered
+- [x] `backend/app/schemas.py` — Pydantic request/response for all endpoints
+- [x] `backend/app/auth.py` — Supabase JWT validation middleware (+ DEV_USER_ID bypass)
+- [x] `backend/app/main.py` — FastAPI app with CORS, health endpoint, routers registered
 - [x] All routers: users, assistants, checkout, api_keys, usage, webhooks
 - [x] `services/encryption.py` — Fernet encrypt/decrypt
 - [x] Twilio + Stripe + Openclaw client integrated in routers
-- [x] Frontend `/apps/web`: Next.js + Supabase auth + /login, /onboarding, /dashboard
+- [x] Frontend `/frontend`: Next.js + Supabase auth + /login, /onboarding, /dashboard
 - [x] API tested and working with real Supabase auth
 - [x] `services/container_service.py` — SSH to host, docker run, health check
 - [x] `worker.py` — polls provisioning_jobs, creates containers, updates status
@@ -837,14 +900,14 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
 - [x] Tool use verified working (read, write, exec tools)
 - [x] **MCP Servers / Google Integrations (backend)**:
   - [x] `supabase/migrations/002_user_integrations.sql` — OAuth tokens table
-  - [x] `services/api/app/routers/oauth.py` — OAuth flow endpoints (connect, callback, list, disconnect)
-  - [x] `services/api/app/services/container_service.py` — MCP config injection + update_config method
-  - [x] `services/api/app/worker.py` — fetches integrations, passes to container creation
+  - [x] `backend/app/routers/oauth.py` — OAuth flow endpoints (connect, callback, list, disconnect)
+  - [x] `backend/app/services/container_service.py` — MCP config injection + update_config method
+  - [x] `backend/app/worker.py` — fetches integrations, passes to container creation
   - [x] Token refresh logic (on-demand when tokens expire)
   - [x] Config updated + container restarted when user connects/disconnects services
 - [x] **Catalyst UI Components** (frontend):
   - [x] Installed: @headlessui/react, motion, clsx, @heroicons/react
-  - [x] Catalyst components in `apps/web/src/components/`
+  - [x] Catalyst components in `frontend/src/components/`
   - [x] Link component updated for Next.js integration
   - [x] Inter font configured in layout + globals.css
 - [x] **Dashboard redesign with sidebar layout**:
@@ -853,27 +916,43 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
   - [x] Section-based content switching
   - [x] Connected Services UI with connect/disconnect buttons
   - [x] Responsive mobile navigation (hamburger menu)
-- [x] **Browser support (Chromium)**:
-  - [x] Custom Docker image `yourclaw-openclaw:latest` with Chromium pre-installed
-  - [x] `infra/docker/Dockerfile` — node:22-bookworm + Chromium + Puppeteer deps
-  - [x] `infra/docker/build.sh` — build script for host server
-  - [x] Browser config in openclaw.json (`defaultProfile: "openclaw"`, `headless: true`, `noSandbox: true`)
-  - [x] Verified working: OpenClaw can browse web, take screenshots, automate pages
+- [x] **Browser support (Sandbox Model)**:
+  - [x] Lightweight gateway image `yourclaw-openclaw:latest` — no browser deps
+  - [x] Separate browser sandbox image `openclaw-sandbox-browser:bookworm-slim` — Chromium + Playwright
+  - [x] `infra/docker/Dockerfile` — lightweight gateway (node:22-bookworm-slim + git)
+  - [x] `infra/docker/Dockerfile.sandbox-browser` — browser sandbox with Chromium
+  - [x] `infra/docker/build.sh` — builds both images
+  - [x] Docker socket mounted in gateway containers to spawn browser sandboxes on-demand
+  - [x] Browser sandbox config: `agents.defaults.sandbox.browser.enabled: true`
+  - [x] Auto-pruning: browser containers cleaned up after 1h idle
 - [x] **Model selection**:
   - [x] `supabase/migrations/003_assistant_model.sql` — model column on assistants table
-  - [x] `services/api/app/schemas.py` — AVAILABLE_MODELS, AssistantUpdateInput
-  - [x] `services/api/app/routers/assistants.py` — PATCH endpoint for model updates
-  - [x] `services/api/app/worker.py` — fetches model from DB, passes to container
-  - [x] `apps/web/src/lib/api.ts` — model constants, updateAssistant API call
-  - [x] `apps/web/src/app/dashboard/page.tsx` — model selector cards UI
+  - [x] `backend/app/schemas.py` — AVAILABLE_MODELS, AssistantUpdateInput
+  - [x] `backend/app/routers/assistants.py` — PATCH endpoint for model updates
+  - [x] `backend/app/worker.py` — fetches model from DB, passes to container
+  - [x] `frontend/src/lib/api.ts` — model constants, updateAssistant API call
+  - [x] `frontend/src/app/dashboard/page.tsx` — model selector cards UI
   - [x] Changing model triggers reprovisioning
 - [x] **Full OpenClaw configuration**:
   - [x] `tools.profile: "full"` — all tools enabled
   - [x] `contextTokens: 200000` — max context for Claude
   - [x] `thinkingDefault: "low"` — extended thinking enabled
-  - [x] `contextPruning: adaptive` — auto-manage long conversations
+  - [x] `compaction.memoryFlush: enabled` — efficient memory management
   - [x] `web.search/fetch enabled` — web access
   - [x] `media.image enabled` — image analysis
+- [x] **Stripe integration**:
+  - [x] Stripe product + price created (YourClaw Pro, $20/month)
+  - [x] Checkout endpoint creates Stripe session
+  - [x] Webhook handles checkout.session.completed → creates subscription
+  - [x] Webhook handles invoice.payment_succeeded → renews period
+  - [x] Webhook handles invoice.payment_failed → marks PAST_DUE
+  - [x] Webhook handles customer.subscription.deleted → cancels + stops container
+  - [x] Frontend redirects to Stripe Checkout when user has no subscription
+  - [x] Tested end-to-end with Stripe CLI
+  - [ ] TODO: Remove credits logic from webhook (or implement credits system)
+- [x] **Container cleanup fix**:
+  - [x] DELETE /assistants now keeps container_id (was clearing it immediately)
+  - [x] Worker cleanup_deleted_assistants() properly stops containers with status=NONE
 
 ### WhatsApp: Sandbox vs Production Mode (IMPORTANT)
 
@@ -921,57 +1000,46 @@ else:
 - No workaround for sandbox. Accept some messages won't arrive if LLM is slow.
 
 ### Next Steps (in order)
-1. **MCP Servers / Integrations** (KEY DIFFERENTIATOR): ✅ DONE
-   - [x] Research Openclaw MCP server configuration
-   - [x] Identify key MCP servers for MVP: Calendar, Gmail, Drive
-   - [x] Design user OAuth flow for connecting services
-   - [x] Add MCP config to container provisioning
-   - [x] Store MCP credentials securely (encrypted in DB)
-   - [x] Token refresh logic
-   - [x] API endpoints: connect, callback, list, disconnect
-   - [x] Frontend: "Connected Services" UI in dashboard (sidebar layout)
-   - [ ] Test with real Google OAuth credentials
-2. **Wait for Meta WhatsApp approval** (production number `+15557589499`)
-3. **Marketing site**: ✅ DONE (consolidated into `/apps/web`)
-   - [x] Competitor analysis (15+ competitors analyzed in `/docs/competitors.md`)
-   - [x] Landing page at `/` with hero, how it works, features, pricing, FAQ
-   - [x] Features page at `/features` with integrations + capabilities
-   - [x] Pricing page at `/pricing` with comparison table + FAQ
-   - [x] Shared marketing components (header, footer)
-   - [x] Updated login/onboarding pages to match new design
-   - [x] **Dark theme redesign** with premium aesthetics:
-     - Dark zinc-950 background throughout
-     - Animated gradient orbs and pulse effects
-     - Mouse-following gradient cursor effect
-     - Spotlight cards with mouse tracking
-     - Tilt effect on interactive elements (pricing card, phone mockup)
-     - Premium iPhone mockup with Dynamic Island
-     - Calendar conversation demo (view meetings → reschedule → confirmation)
-     - Typing indicator animation with progressive message reveal
-     - OpenClaw branding integrated throughout
-     - Glassmorphism + gradient borders on cards
-     - Smooth reveal animations on scroll
-     - Grid pattern background overlay
-   - [x] **Interactive hero section** with instant setup:
-     - AI model selector (Claude active, GPT-4/Gemini "coming soon")
-     - Phone number input with US formatting
-     - "Continue with Google" button triggers OAuth flow
-     - Stores phone/model in localStorage for post-auth processing
-     - All CTAs scroll to top (interactive setup)
-   - [x] **Use cases marquee section**:
-     - 24 use case pills from OpenClaw capabilities
-     - 3 rows with different scroll directions/speeds
-     - Animated marquee with pause on hover
-     - Mix of filled and dashed-outline styles
+1. **API Key Strategy for Launch**:
+   - [ ] Decide: shared key + rate limits vs BYOK required vs credits system
+   - [ ] Implement daily message rate limits (e.g., 100 msg/day per user)
+   - [ ] Update webhook to remove credits logic (or implement it)
+   - [ ] Update website copy if needed (currently says "$10 credits")
+3. **Wait for Meta WhatsApp approval** (production number `+15557589499`)
 4. **Production deployment**:
    - [ ] Deploy API to production (Hetzner or similar)
    - [ ] Deploy frontend to Vercel
    - [ ] Configure real Twilio + Stripe webhooks
    - [ ] Fix Twilio signature validation for production (currently using SKIP_TWILIO_SIGNATURE)
    - [ ] Set up monitoring/logging
-5. **Verify remaining flows**:
-   - [ ] Rate limiting + credit tracking
-   - [ ] Stripe checkout + subscription flow
+5. **Post-launch: Google Integrations** (PAUSED - not production ready):
+   - [x] Backend complete: OAuth flow, token storage, MCP config injection
+   - [x] Frontend complete: Connected Services UI (currently hidden)
+   - [ ] Test with real Google OAuth credentials
+   - [ ] Get Google OAuth app verified for production
+   - [ ] Re-enable in dashboard when ready
+
+### Completed
+- [x] **Browser automation working** (2026-02-08):
+  - Installed Playwright MCP server via `openclaw-mcp-adapter` plugin
+  - 22 browser tools available: navigate, click, fill_form, screenshot, etc.
+  - Tested: Successfully navigated to example.com and booking.com
+  - Uses system Chromium in container (no separate sandbox needed)
+  - See "Browser Automation via Playwright MCP" section for details
+- [x] **OpenClaw tools working** (2026-02-08):
+  - Fixed sandbox config issue - disabled native sandbox mode
+  - Working: Web search, web fetch, bash/exec, file read/write, image analysis
+  - Browser automation now via Playwright MCP (see above)
+- [x] **MCP Servers / Integrations backend**: OAuth flow, token storage, container config injection
+- [x] **Marketing site v2**:
+  - YourClaw-focused copy (removed heavy OpenClaw branding)
+  - Time comparison section (DIY 80 min vs YourClaw 2 min)
+  - Removed Google integrations from marketing (not production ready)
+  - Features: web browsing, file creation, code execution (what actually works)
+  - SEO: OpenGraph, Twitter cards, meta tags
+  - Hidden "Connected Services" from dashboard
+- [x] **Browser sandbox model**: Lightweight gateway + separate browser container via Docker socket
+- [x] **Stripe checkout + subscription flow** (tested with Stripe CLI)
 
 ### Working Style
 - Step by step, building block by building block

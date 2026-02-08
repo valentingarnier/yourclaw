@@ -36,11 +36,6 @@ def build_openclaw_config(gateway_token: str, model: str = DEFAULT_MODEL) -> dic
                 "thinkingDefault": "low",
                 # Enable streaming for better UX
                 "blockStreamingDefault": "on",
-                # Context management for long conversations
-                "contextPruning": {
-                    "mode": "adaptive",
-                    "hardClearRatio": 0.5
-                },
                 # Memory compaction for efficiency
                 "compaction": {
                     "memoryFlush": {"enabled": True}
@@ -71,19 +66,31 @@ def build_openclaw_config(gateway_token: str, model: str = DEFAULT_MODEL) -> dic
                 "image": {"enabled": True}
             }
         },
-        # Browser automation with headless Chromium
-        "browser": {
-            "enabled": True,
-            "defaultProfile": "openclaw",
-            "headless": True,
-            "noSandbox": True,
-            "attachOnly": False,
-            "profiles": {
-                "openclaw": {
-                    "cdpPort": 18800,
-                    "color": "#FF4500"
+        # MCP adapter plugin for browser automation via Playwright
+        "plugins": {
+            "entries": {
+                "openclaw-mcp-adapter": {
+                    "enabled": True,
+                    "config": {
+                        "servers": [
+                            {
+                                "name": "playwright",
+                                "transport": "stdio",
+                                "command": "npx",
+                                "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless"],
+                                "env": {
+                                    "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH": "/usr/bin/chromium",
+                                    "CHROME_PATH": "/usr/bin/chromium"
+                                }
+                            }
+                        ]
+                    }
                 }
             }
+        },
+        # Allow gateway to restart itself
+        "commands": {
+            "restart": True
         }
     }
 
@@ -249,8 +256,17 @@ class ContainerService:
 
         client = self._get_ssh_client()
         try:
-            # Create directories
-            self._exec_command(client, f"mkdir -p {config_dir} {workspace_dir}")
+            # Create directories (including extensions for MCP adapter plugin)
+            extensions_dir = f"{config_dir}/extensions"
+            self._exec_command(client, f"mkdir -p {config_dir} {workspace_dir} {extensions_dir}")
+
+            # Copy MCP adapter plugin from container image to user's config
+            # This enables Playwright browser automation
+            self._exec_command(
+                client,
+                f"docker run --rm -v {extensions_dir}:/host {CONTAINER_IMAGE} "
+                f"cp -r /root/.openclaw/extensions/openclaw-mcp-adapter /host/ 2>/dev/null || true"
+            )
 
             # Write config file
             config_json = json.dumps(config, indent=2)
@@ -269,7 +285,7 @@ class ContainerService:
             self._exec_command(client, f"docker rm -f {container_name} 2>/dev/null || true")
 
             # Run container
-            # Use custom image with Chromium for browser support
+            # Mount Docker socket so gateway can spawn browser sandbox containers
             # Mount config to /root/.openclaw (includes workspace subfolder)
             # Openclaw writes to /root/.openclaw/workspace/ by default
             docker_cmd = f"""docker run -d \
@@ -279,6 +295,7 @@ class ContainerService:
                 --memory=2g \
                 --cpus=1 \
                 -e ANTHROPIC_API_KEY={anthropic_api_key} \
+                -v /var/run/docker.sock:/var/run/docker.sock \
                 -v {config_dir}:/root/.openclaw \
                 -v {workspace_dir}:/root/.openclaw/workspace \
                 {CONTAINER_IMAGE}

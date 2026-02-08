@@ -216,10 +216,11 @@ export default function DashboardPage() {
             <SparklesIcon />
             <SidebarLabel>Assistant</SidebarLabel>
           </SidebarItem>
-          <SidebarItem current={activeSection === "services"} onClick={() => setActiveSection("services")}>
+          {/* Connected Services hidden until Google OAuth is production-ready */}
+          {/* <SidebarItem current={activeSection === "services"} onClick={() => setActiveSection("services")}>
             <LinkIcon />
             <SidebarLabel>Connected Services</SidebarLabel>
-          </SidebarItem>
+          </SidebarItem> */}
           <SidebarItem current={activeSection === "usage"} onClick={() => setActiveSection("usage")}>
             <ChartBarIcon />
             <SidebarLabel>Usage</SidebarLabel>
@@ -285,14 +286,15 @@ export default function DashboardPage() {
           />
         )}
 
-        {activeSection === "services" && (
+        {/* Connected Services hidden until Google OAuth is production-ready */}
+        {/* {activeSection === "services" && (
           <ServicesSection
             integrations={integrations}
             connectingService={connectingService}
             onConnectService={handleConnectService}
             onDisconnectService={handleDisconnectService}
           />
-        )}
+        )} */}
 
         {activeSection === "usage" && <UsageSection usage={usage} user={user} />}
       </div>

@@ -17,13 +17,8 @@ export function MarketingFooter() {
               <Logo size="md" variant="dark" />
             </div>
             <p className="text-sm text-zinc-500 max-w-xs">
-              Your AI assistant on WhatsApp. Powered by OpenClaw and Claude AI.
+              Your personal AI assistant on WhatsApp. Full AI power, zero setup.
             </p>
-            {/* OpenClaw badge */}
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800">
-              <span className="text-xs text-zinc-500">Powered by</span>
-              <span className="text-xs font-semibold text-white">OpenClaw</span>
-            </div>
           </div>
 
           {/* Product */}
@@ -59,35 +54,23 @@ export function MarketingFooter() {
 
           {/* Resources */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-4">Resources</h3>
+            <h3 className="text-sm font-semibold text-white mb-4">Support</h3>
             <ul className="space-y-3">
-              <li>
-                <a
-                  href="https://docs.openclaw.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-zinc-500 hover:text-white transition-colors"
-                >
-                  OpenClaw Docs
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://github.com/openclaw/openclaw"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-zinc-500 hover:text-white transition-colors"
-                >
-                  GitHub
-                </a>
-              </li>
               <li>
                 <a
                   href="mailto:hello@yourclaw.dev"
                   className="text-sm text-zinc-500 hover:text-white transition-colors"
                 >
-                  Support
+                  Contact Us
                 </a>
+              </li>
+              <li>
+                <Link
+                  href="/#faq"
+                  className="text-sm text-zinc-500 hover:text-white transition-colors"
+                >
+                  Help Center
+                </Link>
               </li>
             </ul>
           </div>

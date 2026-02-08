@@ -148,12 +148,11 @@ async def delete_assistant(user_id: uuid.UUID = Depends(get_current_user)) -> No
         return  # Nothing to delete
 
     # Mark for deletion (worker will handle container cleanup)
+    # Keep container_id and port so worker knows what to clean up
     await db.update(
         "assistants",
         {
             "status": "NONE",
-            "container_id": None,
-            "port": None,
             "updated_at": datetime.utcnow().isoformat(),
         },
         {"user_id": str(user_id)},
