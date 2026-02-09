@@ -243,10 +243,13 @@ async def process_job(job: dict) -> None:
             {"id": job_id},
         )
 
-        # Send notification
-        await send_ready_notification(user_id)
-
         logger.info(f"Job {job_id} completed successfully")
+
+        # Send notification (best-effort — don't fail the job if template isn't approved yet)
+        try:
+            await send_ready_notification(user_id)
+        except Exception as notif_err:
+            logger.warning(f"Failed to send ready notification for user {user_id}: {notif_err}")
 
     except Exception as e:
         logger.error(f"Job {job_id} failed: {e}")
