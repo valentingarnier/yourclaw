@@ -80,9 +80,16 @@ export interface UserProfile {
 
 // Available models for selection
 export const AVAILABLE_MODELS = [
-  { id: "anthropic/claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5", description: "Fast and capable" },
-  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful" },
-  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fastest responses" },
+  // Anthropic
+  { id: "anthropic/claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic" },
+  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful", provider: "anthropic" },
+  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic" },
+  // OpenAI
+  { id: "openai/gpt-4o", name: "GPT-4o", description: "OpenAI's flagship model", provider: "openai" },
+  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and affordable", provider: "openai" },
+  // Google
+  { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Google's fast model", provider: "google" },
+  { id: "google/gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", description: "Lightweight and fast", provider: "google" },
 ] as const;
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";
@@ -119,6 +126,19 @@ export interface ConnectResponse {
   auth_url: string;
 }
 
+// API Keys (BYOK)
+export interface ApiKeyResponse {
+  provider: string;
+  created_at: string;
+  has_key: boolean;
+}
+
+export const API_KEY_PROVIDERS = [
+  { id: "ANTHROPIC", name: "Anthropic", description: "Claude models" },
+  { id: "OPENAI", name: "OpenAI", description: "GPT models" },
+  { id: "GOOGLE", name: "Google", description: "Gemini models" },
+] as const;
+
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}${path}`, {
@@ -150,4 +170,9 @@ export const api = {
   getIntegrations: () => apiGet<IntegrationsResponse>("/api/v1/oauth/integrations"),
   connectService: (service: string) => apiGet<ConnectResponse>(`/api/v1/oauth/google/${service}/connect`),
   disconnectService: (service: string) => apiDelete(`/api/v1/oauth/google/${service}`),
+
+  // API Keys (BYOK)
+  getApiKeys: () => apiGet<ApiKeyResponse[]>("/api/v1/api-keys"),
+  addApiKey: (provider: string, key: string) => apiPost<ApiKeyResponse>("/api/v1/api-keys", { provider, key }),
+  deleteApiKey: (provider: string) => apiDelete(`/api/v1/api-keys?provider=${provider}`),
 };

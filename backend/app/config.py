@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_whatsapp_number: str = ""  # e.g. whatsapp:+14155238886
+    twilio_template_assistant_ready: str = "HX2da33755ce26e6cd5177e9d07bba71d6"  # Content template SID
 
     # Stripe
     stripe_secret_key: str = ""
@@ -23,8 +24,10 @@ class Settings(BaseSettings):
     host_server_ssh_key_path: str = ""  # Local dev: path to SSH key file
     host_server_ssh_key: str = ""  # Production: SSH key content (for Render/Railway)
 
-    # Shared LLM Key
+    # Shared LLM Keys
     anthropic_api_key: str = ""
+    openai_api_key: str = ""
+    google_api_key: str = ""  # For Gemini
 
     # Google OAuth (for integrations: Calendar, Gmail, Drive)
     google_client_id: str = ""

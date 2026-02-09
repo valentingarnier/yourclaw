@@ -9,8 +9,10 @@ import {
   AssistantResponse,
   UsageResponse,
   IntegrationsResponse,
+  ApiKeyResponse,
   AVAILABLE_MODELS,
   DEFAULT_MODEL,
+  API_KEY_PROVIDERS,
 } from "@/lib/api";
 
 // Catalyst components
@@ -41,6 +43,7 @@ import {
 } from "@/components/dropdown";
 import { Navbar, NavbarSpacer } from "@/components/navbar";
 import { Logo } from "@/components/logo";
+import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from "@/components/dialog";
 
 // Heroicons
 import {
@@ -56,9 +59,16 @@ import {
   SparklesIcon,
   LinkIcon,
   ChartBarIcon,
+  KeyIcon,
+  CheckIcon,
+  XMarkIcon,
+  WrenchScrewdriverIcon,
+  ClockIcon,
+  PaperAirplaneIcon,
+  LightBulbIcon,
 } from "@heroicons/react/20/solid";
 
-type Section = "assistant" | "services" | "usage";
+type Section = "assistant" | "tools" | "services" | "usage" | "apikeys";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -69,6 +79,7 @@ export default function DashboardPage() {
   const [assistant, setAssistant] = useState<AssistantResponse | null>(null);
   const [usage, setUsage] = useState<UsageResponse | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationsResponse | null>(null);
+  const [apiKeys, setApiKeys] = useState<ApiKeyResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [connectingService, setConnectingService] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<Section>("assistant");
@@ -81,17 +92,19 @@ export default function DashboardPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const [userData, assistantData, usageData, integrationsData] = await Promise.all([
+      const [userData, assistantData, usageData, integrationsData, apiKeysData] = await Promise.all([
         api.getMe(),
         api.getAssistant().catch(() => null),
         api.getUsage().catch(() => null),
         api.getIntegrations().catch(() => null),
+        api.getApiKeys().catch(() => []),
       ]);
 
       setUser(userData);
       setAssistant(assistantData);
       setUsage(usageData);
       setIntegrations(integrationsData);
+      setApiKeys(apiKeysData);
 
       // Set selected model from assistant data
       if (assistantData?.model) {
@@ -216,6 +229,14 @@ export default function DashboardPage() {
             <SparklesIcon />
             <SidebarLabel>Assistant</SidebarLabel>
           </SidebarItem>
+          <SidebarItem current={activeSection === "apikeys"} onClick={() => setActiveSection("apikeys")}>
+            <KeyIcon />
+            <SidebarLabel>API Keys</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem current={activeSection === "tools"} onClick={() => setActiveSection("tools")}>
+            <WrenchScrewdriverIcon />
+            <SidebarLabel>Tools</SidebarLabel>
+          </SidebarItem>
           {/* Connected Services hidden until Google OAuth is production-ready */}
           {/* <SidebarItem current={activeSection === "services"} onClick={() => setActiveSection("services")}>
             <LinkIcon />
@@ -286,6 +307,17 @@ export default function DashboardPage() {
           />
         )}
 
+        {activeSection === "apikeys" && (
+          <ApiKeysSection
+            apiKeys={apiKeys}
+            assistant={assistant}
+            onRefresh={loadData}
+            setError={setError}
+          />
+        )}
+
+        {activeSection === "tools" && <ToolsSection userEmail={user?.email || ""} />}
+
         {/* Connected Services hidden until Google OAuth is production-ready */}
         {/* {activeSection === "services" && (
           <ServicesSection
@@ -335,35 +367,85 @@ function AssistantSection({
 
       {/* Model Selection */}
       <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
-        <Subheading className="mb-4">AI Model</Subheading>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {AVAILABLE_MODELS.map((model) => (
-            <button
-              key={model.id}
-              onClick={() => {
-                if (canChangeModel) {
-                  onModelChange(model.id);
-                } else if (assistant?.status === "READY") {
-                  onUpdateModel(model.id);
-                }
-              }}
-              disabled={assistant?.status === "PROVISIONING"}
-              className={`relative rounded-lg border p-4 text-left transition-all ${
-                selectedModel === model.id
-                  ? "border-zinc-950 dark:border-white bg-zinc-50 dark:bg-zinc-800"
-                  : "border-zinc-950/10 dark:border-white/10 hover:border-zinc-950/30 dark:hover:border-white/30"
-              } ${assistant?.status === "PROVISIONING" ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-            >
-              <p className="text-sm font-medium text-zinc-950 dark:text-white">{model.name}</p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{model.description}</p>
-              {selectedModel === model.id && (
-                <div className="absolute top-2 right-2 size-2 rounded-full bg-green-500" />
-              )}
-            </button>
-          ))}
+        <Subheading className="mb-6">AI Model</Subheading>
+
+        {/* Anthropic */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <img src="/claude-logo.png" alt="Anthropic" className="size-5" />
+            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Anthropic</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {AVAILABLE_MODELS.filter((m) => m.provider === "anthropic").map((model) => (
+              <ModelButton
+                key={model.id}
+                model={model}
+                selected={selectedModel === model.id}
+                disabled={assistant?.status === "PROVISIONING"}
+                onClick={() => {
+                  if (canChangeModel) {
+                    onModelChange(model.id);
+                  } else if (assistant?.status === "READY") {
+                    onUpdateModel(model.id);
+                  }
+                }}
+              />
+            ))}
+          </div>
         </div>
+
+        {/* OpenAI */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <img src="/openai-logo.png" alt="OpenAI" className="size-5" />
+            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">OpenAI</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {AVAILABLE_MODELS.filter((m) => m.provider === "openai").map((model) => (
+              <ModelButton
+                key={model.id}
+                model={model}
+                selected={selectedModel === model.id}
+                disabled={assistant?.status === "PROVISIONING"}
+                onClick={() => {
+                  if (canChangeModel) {
+                    onModelChange(model.id);
+                  } else if (assistant?.status === "READY") {
+                    onUpdateModel(model.id);
+                  }
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Google */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <img src="/gemini-logo.png" alt="Google" className="size-5" />
+            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Google</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {AVAILABLE_MODELS.filter((m) => m.provider === "google").map((model) => (
+              <ModelButton
+                key={model.id}
+                model={model}
+                selected={selectedModel === model.id}
+                disabled={assistant?.status === "PROVISIONING"}
+                onClick={() => {
+                  if (canChangeModel) {
+                    onModelChange(model.id);
+                  } else if (assistant?.status === "READY") {
+                    onUpdateModel(model.id);
+                  }
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
         {assistant?.status === "READY" && (
-          <Text className="mt-3 text-xs">Changing model will reprovision your assistant.</Text>
+          <Text className="mt-6 text-xs">Changing model will reprovision your assistant.</Text>
         )}
       </div>
 
@@ -603,5 +685,390 @@ function UsageCard({ value, label }: { value: string | number; label: string }) 
       <p className="text-3xl font-semibold text-zinc-950 dark:text-white">{value}</p>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{label}</p>
     </div>
+  );
+}
+
+function ApiKeysSection({
+  apiKeys,
+  assistant,
+  onRefresh,
+  setError,
+}: {
+  apiKeys: ApiKeyResponse[];
+  assistant: AssistantResponse | null;
+  onRefresh: () => void;
+  setError: (error: string | null) => void;
+}) {
+  const [savingProvider, setSavingProvider] = useState<string | null>(null);
+  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
+
+  const hasKey = (provider: string) => apiKeys.some((k) => k.provider === provider);
+
+  async function handleSaveKey(provider: string) {
+    const key = keyInputs[provider];
+    if (!key || key.trim().length < 10) {
+      setError("Please enter a valid API key");
+      return;
+    }
+
+    try {
+      setSavingProvider(provider);
+      setError(null);
+      await api.addApiKey(provider, key.trim());
+      setKeyInputs((prev) => ({ ...prev, [provider]: "" }));
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to save ${provider} key`);
+    } finally {
+      setSavingProvider(null);
+    }
+  }
+
+  async function handleDeleteKey(provider: string) {
+    const providerInfo = API_KEY_PROVIDERS.find((p) => p.id === provider);
+    if (!confirm(`Remove your ${providerInfo?.name} API key? Your assistant will use the shared key instead.`)) return;
+
+    try {
+      setSavingProvider(provider);
+      setError(null);
+      await api.deleteApiKey(provider);
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to remove ${provider} key`);
+    } finally {
+      setSavingProvider(null);
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Heading>API Keys</Heading>
+        <Text className="mt-2">
+          Use your own API keys to avoid usage limits or use your existing accounts.
+          {assistant?.status === "READY" && " Your assistant will be restarted when you add or remove keys."}
+        </Text>
+      </div>
+
+      <Divider />
+
+      <div className="space-y-4">
+        {API_KEY_PROVIDERS.map((provider) => {
+          const hasOwnKey = hasKey(provider.id);
+          const isSaving = savingProvider === provider.id;
+
+          return (
+            <div
+              key={provider.id}
+              className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                    <KeyIcon className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-950 dark:text-white">{provider.name}</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">{provider.description}</p>
+                  </div>
+                </div>
+                {hasOwnKey && (
+                  <Badge color="green" className="flex items-center gap-1">
+                    <CheckIcon className="size-3" />
+                    Custom key
+                  </Badge>
+                )}
+              </div>
+
+              {hasOwnKey ? (
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-950/5 dark:border-white/5">
+                  <Text className="text-sm">Your API key is configured and encrypted.</Text>
+                  <Button
+                    plain
+                    onClick={() => handleDeleteKey(provider.id)}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Removing..." : "Remove key"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2 mt-3">
+                  <input
+                    type="password"
+                    placeholder={`Enter your ${provider.name} API key`}
+                    value={keyInputs[provider.id] || ""}
+                    onChange={(e) =>
+                      setKeyInputs((prev) => ({ ...prev, [provider.id]: e.target.value }))
+                    }
+                    className="flex-1 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                  />
+                  <Button
+                    color="dark"
+                    onClick={() => handleSaveKey(provider.id)}
+                    disabled={isSaving || !keyInputs[provider.id]}
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 p-4">
+        <Text className="text-sm">
+          <strong>Note:</strong> Your API keys are encrypted and stored securely. We never log or share your keys.
+          When you add a custom key, your assistant will use it instead of the shared key for that provider.
+        </Text>
+      </div>
+    </div>
+  );
+}
+
+const MCP_TOOLS = [
+  {
+    id: "gmail",
+    name: "Gmail",
+    description: "Read, search, and send emails directly from your assistant",
+    icon: EnvelopeIcon,
+    status: "coming_soon" as const,
+  },
+  {
+    id: "calendar",
+    name: "Google Calendar",
+    description: "View, create, and manage calendar events",
+    icon: CalendarIcon,
+    status: "coming_soon" as const,
+  },
+  {
+    id: "drive",
+    name: "Google Drive",
+    description: "Access and manage files in your Google Drive",
+    icon: FolderIcon,
+    status: "coming_soon" as const,
+  },
+];
+
+function ToolsSection({ userEmail }: { userEmail: string }) {
+  const [isRequestOpen, setIsRequestOpen] = useState(false);
+  const [toolName, setToolName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  async function handleSubmitRequest() {
+    if (!description.trim()) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await fetch("/api/tool-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail,
+          toolName: toolName.trim(),
+          description: description.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to submit request");
+      }
+
+      setSubmitSuccess(true);
+      setToolName("");
+      setDescription("");
+      setTimeout(() => {
+        setIsRequestOpen(false);
+        setSubmitSuccess(false);
+      }, 2000);
+    } catch {
+      setSubmitError("Failed to submit request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Heading>Tools</Heading>
+        <Text className="mt-2">
+          Extend your assistant&apos;s capabilities by connecting external services. Tools let your assistant
+          interact with apps like Gmail, Google Calendar, and more on your behalf.
+        </Text>
+      </div>
+
+      <Divider />
+
+      {/* How it works */}
+      <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 p-6">
+        <Subheading className="mb-3">How Tools Work</Subheading>
+        <Text className="text-sm">
+          Tools use the <strong>Model Context Protocol (MCP)</strong> to securely connect your assistant to external
+          services. When you connect a tool, your assistant gains the ability to perform actions like reading emails,
+          checking your calendar, or accessing files — all through natural conversation.
+        </Text>
+      </div>
+
+      {/* Available Tools */}
+      <div>
+        <Subheading className="mb-4">Available Tools</Subheading>
+        <div className="space-y-4">
+          {MCP_TOOLS.map((tool) => (
+            <ToolCard key={tool.id} tool={tool} />
+          ))}
+        </div>
+      </div>
+
+      {/* Request a Tool */}
+      <div className="rounded-lg border border-dashed border-zinc-950/20 dark:border-white/20 p-6 text-center">
+        <LightBulbIcon className="size-8 mx-auto text-amber-500 dark:text-amber-400 mb-3" />
+        <Text className="text-sm mb-4">
+          <strong>Need a different tool?</strong>
+          <br />
+          Let us know what integrations would be most useful for you.
+        </Text>
+        <Button outline onClick={() => setIsRequestOpen(true)}>
+          <PaperAirplaneIcon className="size-4" />
+          Request a Tool
+        </Button>
+      </div>
+
+      {/* Request Dialog */}
+      <Dialog open={isRequestOpen} onClose={() => setIsRequestOpen(false)} size="md">
+        <DialogTitle>Request a Tool</DialogTitle>
+        <DialogDescription>
+          Tell us what tool or integration you&apos;d like to see. We&apos;ll prioritize based on user requests.
+        </DialogDescription>
+        <DialogBody>
+          {submitSuccess ? (
+            <div className="text-center py-4">
+              <CheckIcon className="size-12 mx-auto text-green-500 mb-3" />
+              <Text className="font-medium text-green-600 dark:text-green-400">
+                Request submitted! We&apos;ll review it soon.
+              </Text>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-950 dark:text-white mb-1.5">
+                  Tool Name (optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Slack, Notion, Jira..."
+                  value={toolName}
+                  onChange={(e) => setToolName(e.target.value)}
+                  className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-950 dark:text-white mb-1.5">
+                  What would you like it to do?
+                </label>
+                <textarea
+                  placeholder="Describe the tool and how you'd use it with your assistant..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white resize-none"
+                />
+              </div>
+              {submitError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
+              )}
+            </div>
+          )}
+        </DialogBody>
+        {!submitSuccess && (
+          <DialogActions>
+            <Button plain onClick={() => setIsRequestOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              color="dark"
+              onClick={handleSubmitRequest}
+              disabled={isSubmitting || !description.trim()}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogActions>
+        )}
+      </Dialog>
+    </div>
+  );
+}
+
+function ToolCard({ tool }: { tool: typeof MCP_TOOLS[number] }) {
+  const Icon = tool.icon;
+  const isComingSoon = tool.status === "coming_soon";
+
+  return (
+    <div className={`rounded-lg border border-zinc-950/10 dark:border-white/10 p-4 ${isComingSoon ? "opacity-75" : ""}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+            <Icon className="size-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-zinc-950 dark:text-white">{tool.name}</p>
+              {isComingSoon && (
+                <Badge color="amber" className="flex items-center gap-1">
+                  <ClockIcon className="size-3" />
+                  Coming Soon
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{tool.description}</p>
+          </div>
+        </div>
+
+        {isComingSoon ? (
+          <Button outline disabled>
+            Connect
+          </Button>
+        ) : (
+          <Button outline>
+            Connect
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModelButton({
+  model,
+  selected,
+  disabled,
+  onClick,
+}: {
+  model: typeof AVAILABLE_MODELS[number];
+  selected: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`relative rounded-lg border p-4 text-left transition-all ${
+        selected
+          ? "border-zinc-950 dark:border-white bg-zinc-50 dark:bg-zinc-800"
+          : "border-zinc-950/10 dark:border-white/10 hover:border-zinc-950/30 dark:hover:border-white/30"
+      } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+    >
+      <p className="text-sm font-medium text-zinc-950 dark:text-white">{model.name}</p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{model.description}</p>
+      {selected && (
+        <div className="absolute top-2 right-2 size-2 rounded-full bg-green-500" />
+      )}
+    </button>
   );
 }

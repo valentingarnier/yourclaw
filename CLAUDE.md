@@ -15,7 +15,7 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 - **Container image**: Custom `yourclaw-openclaw:latest` (lightweight gateway) + `openclaw-sandbox-browser:bookworm-slim` (browser tool)
 - **Openclaw install**: Pre-installed in container image, starts with `openclaw gateway`
 - **Job queue**: DB-backed (`provisioning_jobs` table + Python worker polling). No Redis/Celery for MVP. Low traffic assumed.
-- **LLM provider**: Anthropic only (modular design for future providers). Shared API key for MVP, BYOK ready.
+- **LLM providers**: Anthropic, OpenAI, Google. Shared API keys for MVP, BYOK supported (users can add their own keys from dashboard).
 - **Openclaw tools**: ALL tools enabled. No restrictions. Full power of Openclaw.
 - **Payments**: Stripe Checkout for subscription. Required before assistant creation.
 - **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true` for local dev without real credentials.
@@ -34,8 +34,8 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 10. Worker SSHs to host server → docker run openclaw container
 11. Writes config (API key, gateway token) → starts openclaw gateway
 12. Health check passes → assistant status = READY
-13. Backend sends "Your assistant is ready! Say hi." WhatsApp via Twilio
-14. User messages the Twilio WhatsApp number
+13. Dashboard shows "Your assistant is ready!" with instructions to message the Twilio number
+14. User messages the Twilio WhatsApp number first (initiates 24-hour session window)
 15. Twilio webhook → backend routes to user's container → gets reply → sends back
 16. Usage tracked per day. Rate limits enforced. [TODO: implement rate limits]
 ```
@@ -467,7 +467,7 @@ OpenClaw supports 4 built-in tool profiles:
 - **messaging**: Messaging tools + session management
 - **full**: No restrictions (our default)
 
-The Anthropic API key is set via environment variable `ANTHROPIC_API_KEY` on the container (not in config file). This makes it easy to swap between shared key and BYOK without rewriting config.
+LLM API keys are set via environment variables on the container (not in config file): `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`. This makes it easy to swap between shared keys and BYOK without rewriting config.
 
 Openclaw gateway started with: `openclaw gateway --port 18789 --bind lan`
 
@@ -570,12 +570,17 @@ Users can choose their AI model from the dashboard. Available models:
 | `anthropic/claude-sonnet-4-5-20250929` | Claude Sonnet 4.5 | Fast and capable (default) |
 | `anthropic/claude-opus-4-5-20251101` | Claude Opus 4.5 | Most powerful |
 | `anthropic/claude-haiku-4-5-20251001` | Claude Haiku 4.5 | Fastest responses |
+| `openai/gpt-4o` | GPT-4o | OpenAI's flagship model |
+| `openai/gpt-4o-mini` | GPT-4o Mini | Fast and affordable |
+| `google/gemini-2.0-flash` | Gemini 2.0 Flash | Google's fast model |
+| `google/gemini-2.0-flash-lite` | Gemini 2.0 Flash Lite | Lightweight and fast |
 
 **Implementation:**
 - Model stored in `assistants.model` column (DB migration: `003_assistant_model.sql`)
 - Changed via PATCH `/api/v1/assistants` endpoint
 - Triggers reprovisioning to apply new model
 - Frontend shows model selector cards in Assistant section
+- All LLM API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY) passed to containers
 
 **Flow:**
 1. User clicks different model card in dashboard
@@ -681,24 +686,43 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxx
 
 ## LLM API Key Strategy
 
-### Current State (MVP Launch)
-- **Shared key**: Single Anthropic API key used for all users. Key set as `ANTHROPIC_API_KEY` env var on each container.
-- **No credits system**: Website no longer mentions credits. Simple $20/month subscription with shared API key.
-- **BYOK ready**: `api_keys` table exists for users to add their own key. Not exposed in UI yet.
+### Current State (Production)
+- **Multi-provider support**: Anthropic, OpenAI, and Google keys supported
+- **Shared keys**: Default keys for all providers set via environment variables on containers
+- **BYOK implemented**: Users can add their own API keys from Dashboard → API Keys section
+- **No credits system**: Simple $20/month subscription with shared API keys
 
-### TODO: Decide Strategy for 100 Users at Launch
-Options to consider:
-1. **Shared key with rate limits only**: Simple. Use daily message caps (e.g., 100 msg/day). Risk: one user can't exhaust credits for others.
-2. **BYOK required**: Users must bring their own Anthropic key. Lower margin but zero API cost risk.
-3. **Credits system**: Build proper per-user token tracking. More work but matches website promise.
-4. **Hybrid**: Start with shared key + rate limits. Add credits tracking later.
+### BYOK (Bring Your Own Key)
 
-**Recommendation for MVP**: Option 1 (shared key + rate limits). Fast to ship, low risk with 100 users. Revisit when hitting cost issues.
+Users can add their own API keys for any provider from the dashboard:
+
+**Supported providers:**
+- `ANTHROPIC` — for Claude models
+- `OPENAI` — for GPT models
+- `GOOGLE` — for Gemini models
+
+**How it works:**
+1. User goes to Dashboard → API Keys
+2. User enters their API key for any provider
+3. Backend encrypts key with Fernet, stores in `api_keys` table
+4. If assistant is READY, triggers reprovisioning automatically
+5. Worker fetches all BYOK keys, uses them instead of shared keys
+6. Container starts with user's own API keys
+
+**API Endpoints:**
+```
+GET    /api/v1/api-keys              — list user's keys (provider + created_at, no values)
+POST   /api/v1/api-keys              — add key { provider, key } → triggers reprovision
+DELETE /api/v1/api-keys/{provider}   — remove key → triggers reprovision (reverts to shared)
+```
+
+**Key priority:** BYOK key > shared key (per provider)
 
 ### Technical Details
-- **Key injection**: Set as `ANTHROPIC_API_KEY` env var on the Docker container.
-- **Key switching**: When user adds/removes BYOK key, update container env var (requires container restart).
-- **Encryption**: User keys encrypted with Fernet. Master key in `ENCRYPTION_KEY` env var.
+- **Key injection**: Set as env vars on Docker container (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`)
+- **Key switching**: Adding/removing BYOK key triggers reprovisioning (container recreated with new keys)
+- **Encryption**: User keys encrypted with Fernet. Master key in `ENCRYPTION_KEY` env var
+- **Security**: Keys never exposed in API responses, only provider name and created_at returned
 
 ## Stripe Integration (COMPLETE)
 - **Model**: Monthly subscription ($20/mo) via Stripe Checkout
@@ -742,12 +766,17 @@ STRIPE_PRICE_ID=                   # price_xxx ($20/month subscription)
 HOST_SERVER_IP=                     # IP of the Docker host server
 HOST_SERVER_SSH_KEY_PATH=           # path to SSH private key
 
-# Shared LLM Key
+# Shared LLM Keys
 ANTHROPIC_API_KEY=                  # shared Anthropic key for all users
+OPENAI_API_KEY=                     # shared OpenAI key for GPT models
+GOOGLE_API_KEY=                     # shared Google key for Gemini models
 
 # Google OAuth (for integrations)
 GOOGLE_CLIENT_ID=                   # xxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=               # GOCSPX-xxx
+
+# Resend (waitlist emails)
+RESEND_API_KEY=                     # re_xxx (from resend.com)
 
 # Security
 ENCRYPTION_KEY=                     # Fernet key for encrypting user API keys + gateway tokens
@@ -848,6 +877,7 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
   - `/onboarding` — WhatsApp number input, E.164 validation
   - `/dashboard` — Sidebar layout with sections:
     - Assistant section (status, create/delete, model selection)
+    - API Keys section (BYOK - add/remove keys for Anthropic, OpenAI, Google)
     - Usage section (messages, account info)
     - Profile dropdown in sidebar footer (settings, sign out)
     - Connected Services section (HIDDEN - waiting for Google OAuth verification)
@@ -911,10 +941,11 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
   - [x] Link component updated for Next.js integration
   - [x] Inter font configured in layout + globals.css
 - [x] **Dashboard redesign with sidebar layout**:
-  - [x] SidebarLayout with navigation (Assistant, Connected Services, Usage)
+  - [x] SidebarLayout with navigation (Assistant, API Keys, Usage)
   - [x] Profile dropdown in sidebar footer (avatar, username, phone, sign out)
   - [x] Section-based content switching
-  - [x] Connected Services UI with connect/disconnect buttons
+  - [x] API Keys section with provider cards (Anthropic, OpenAI, Google)
+  - [x] Connected Services UI (currently hidden - waiting for Google OAuth verification)
   - [x] Responsive mobile navigation (hamburger menu)
 - [x] **Browser support (Sandbox Model)**:
   - [x] Lightweight gateway image `yourclaw-openclaw:latest` — no browser deps
@@ -999,18 +1030,73 @@ else:
 - **This is a dev-only limitation** - production REST API is async (no timeout)
 - No workaround for sandbox. Accept some messages won't arrive if LLM is slow.
 
+### WhatsApp 24-Hour Session Window (IMPORTANT)
+
+WhatsApp Business API has a **24-hour session window** policy:
+- You can only send free-form messages within 24 hours of the user's LAST message
+- Outside this window, you can ONLY send pre-approved **template messages**
+- This is a Meta/WhatsApp policy enforced by Twilio
+
+**Impact on YourClaw:**
+- We CANNOT proactively message users (e.g., "Your assistant is ready!")
+- User MUST send the first message to initiate the session
+- Once they message, we have 24 hours to respond freely
+
+**Solution: Template Messages (IMPLEMENTED)**
+
+We use pre-approved WhatsApp template messages to notify users when their assistant is ready.
+
+**Template details:**
+- **Content SID**: `HX2da33755ce26e6cd5177e9d07bba71d6`
+- **Category**: UTILITY (transactional)
+- **Env var**: `TWILIO_TEMPLATE_ASSISTANT_READY`
+
+**Flow:**
+1. User creates assistant → provisioning starts
+2. Worker provisions container → health check passes
+3. Worker calls `send_ready_notification()` → sends template via Twilio Content API
+4. User receives "Your assistant is ready!" on WhatsApp
+5. User replies → 24-hour session window opens → free-form conversation begins
+
+**Code:**
+```python
+# backend/app/routers/webhooks.py
+async def send_twilio_template(to_number: str, content_sid: str) -> None:
+    client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+    message = client.messages.create(
+        from_=settings.twilio_whatsapp_number,
+        to=f"whatsapp:{to_number}",
+        content_sid=content_sid,
+    )
+
+# backend/app/worker.py
+async def send_ready_notification(user_id: str) -> None:
+    await send_twilio_template(
+        phone_row["phone_e164"],
+        settings.twilio_template_assistant_ready,
+    )
+```
+
+**To create additional templates:**
+1. Twilio Console → Messaging → Content Template Builder
+2. Create template with category "UTILITY"
+3. Submit for Meta approval (24-48h, often faster)
+4. Add Content SID to config and code
+
 ### Next Steps (in order)
-1. **API Key Strategy for Launch**:
-   - [ ] Decide: shared key + rate limits vs BYOK required vs credits system
+1. **Production Launch** (CURRENT):
+   - [x] Meta WhatsApp approval received
+   - [x] Waitlist reverted to signup flow
+   - [x] BYOK (Bring Your Own Key) implemented in dashboard
+   - [x] WhatsApp template message for "assistant ready" notification
+   - [ ] Configure Twilio webhook URL: `https://yourclaw.onrender.com/api/v1/webhooks/twilio/whatsapp`
+   - [ ] Configure Stripe webhook URL: `https://yourclaw.onrender.com/api/v1/webhooks/stripe`
+   - [ ] Enable Twilio signature validation (remove SKIP_TWILIO_SIGNATURE)
+   - [ ] Add `TWILIO_TEMPLATE_ASSISTANT_READY` to Render env vars
+2. **Rate Limits** (TODO):
    - [ ] Implement daily message rate limits (e.g., 100 msg/day per user)
-   - [x] Removed "$10 credits" from website copy
-2. **Wait for Meta WhatsApp approval** (production number `+15557589499`)
-3. **Production webhooks**:
-   - [ ] Configure real Twilio webhook URL (currently sandbox)
-   - [ ] Configure real Stripe webhook URL
-   - [ ] Fix Twilio signature validation for production (currently using SKIP_TWILIO_SIGNATURE)
-   - [ ] Set up monitoring/logging
-4. **Post-launch: Google Integrations** (PAUSED - not production ready):
+   - [ ] Implement per-minute rate limits (e.g., 5 msg/min)
+3. **Post-launch: Google Integrations** (PAUSED - not production ready):
    - [x] Backend complete: OAuth flow, token storage, MCP config injection
    - [x] Frontend complete: Connected Services UI (currently hidden)
    - [ ] Test with real Google OAuth credentials
@@ -1018,6 +1104,33 @@ else:
    - [ ] Re-enable in dashboard when ready
 
 ### Completed
+- [x] **WhatsApp template message** (2026-02-09):
+  - Template SID: `HX2da33755ce26e6cd5177e9d07bba71d6`
+  - Sent when assistant provisioning completes
+  - Bypasses 24-hour session window limitation
+  - `send_twilio_template()` function in webhooks.py
+  - Worker calls `send_ready_notification()` after health check passes
+- [x] **Google Analytics** (2026-02-09):
+  - GA4 tag (G-2E55TEMF7X) added to root layout
+  - Tracks all pages: marketing, login, dashboard
+  - Uses Next.js Script component with `afterInteractive` strategy
+- [x] **BYOK (Bring Your Own Key)** (2026-02-09):
+  - Dashboard → API Keys section with cards for each provider
+  - Users can add/remove keys for Anthropic, OpenAI, Google
+  - Adding/removing key triggers automatic reprovisioning
+  - Worker fetches BYOK keys, uses them over shared keys
+  - Keys encrypted with Fernet, never exposed in API responses
+  - `backend/app/routers/api_keys.py` - GET/POST/DELETE endpoints
+  - `frontend/src/app/dashboard/page.tsx` - API Keys UI section
+- [x] **Multi-provider LLM support** (2026-02-09):
+  - Added OpenAI and Google API keys to config
+  - 7 models available: Claude (3), GPT (2), Gemini (2)
+  - All keys passed to containers as env vars
+  - Model selection triggers reprovisioning with correct provider key
+- [x] **Waitlist mode** (2026-02-09, reverted same day):
+  - Temporarily added waitlist while waiting for Meta approval
+  - Resend integration for notification emails
+  - Reverted to normal signup flow after approval
 - [x] **Browser automation working** (2026-02-08):
   - Installed Playwright MCP server via `openclaw-mcp-adapter` plugin
   - 22 browser tools available: navigate, click, fill_form, screenshot, etc.

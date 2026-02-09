@@ -208,6 +208,8 @@ class ContainerService:
         port: int,
         gateway_token: str,
         anthropic_api_key: str,
+        openai_api_key: str = "",
+        google_api_key: str = "",
         integrations: dict[str, str] | None = None,
         model: str = DEFAULT_MODEL,
     ) -> str:
@@ -218,6 +220,8 @@ class ContainerService:
             port: Host port to map (e.g., 19001)
             gateway_token: Auth token for Openclaw gateway
             anthropic_api_key: Anthropic API key (shared or BYOK)
+            openai_api_key: OpenAI API key for GPT models
+            google_api_key: Google API key for Gemini models
             integrations: Dict of service -> access_token for MCP servers
                           e.g. {"GOOGLE_CALENDAR": "ya29...", "GOOGLE_GMAIL": "ya29..."}
             model: OpenClaw model identifier (e.g., "anthropic/claude-sonnet-4-5-20250929")
@@ -288,13 +292,20 @@ class ContainerService:
             # Mount Docker socket so gateway can spawn browser sandbox containers
             # Mount config to /root/.openclaw (includes workspace subfolder)
             # Openclaw writes to /root/.openclaw/workspace/ by default
+            # Pass all LLM API keys so users can switch models
+            env_vars = f"-e ANTHROPIC_API_KEY={anthropic_api_key}"
+            if openai_api_key:
+                env_vars += f" -e OPENAI_API_KEY={openai_api_key}"
+            if google_api_key:
+                env_vars += f" -e GOOGLE_API_KEY={google_api_key}"
+
             docker_cmd = f"""docker run -d \
                 --name {container_name} \
                 --restart unless-stopped \
                 -p {port}:18789 \
                 --memory=2g \
                 --cpus=1 \
-                -e ANTHROPIC_API_KEY={anthropic_api_key} \
+                {env_vars} \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -v {config_dir}:/root/.openclaw \
                 -v {workspace_dir}:/root/.openclaw/workspace \

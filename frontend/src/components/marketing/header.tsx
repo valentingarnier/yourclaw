@@ -43,21 +43,20 @@ export function MarketingHeader() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <span className="px-3 py-1 text-xs font-medium text-emerald-400 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-              Feb 11
-            </span>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+            <Link
+              href="/login"
+              className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/login"
               className="group relative px-5 py-2.5 text-sm font-semibold text-zinc-900 rounded-full overflow-hidden transition-all duration-300"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-300 group-hover:scale-105" />
               <span className="absolute inset-0 bg-gradient-to-r from-emerald-300 to-cyan-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="relative">Join Waitlist</span>
-            </a>
+              <span className="relative">Get Started</span>
+            </Link>
           </div>
 
           {/* Mobile menu button */}
@@ -94,23 +93,20 @@ export function MarketingHeader() {
               FAQ
             </MobileNavLink>
             <div className="pt-4 mt-2 border-t border-white/5 flex flex-col gap-2">
-              <div className="px-4 py-2 flex items-center gap-2">
-                <span className="px-2 py-0.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-                  Feb 11
-                </span>
-                <span className="text-sm text-zinc-500">Launch date</span>
-              </div>
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setMobileMenuOpen(false);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-4 py-2 text-sm text-zinc-400 hover:text-white text-center"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
                 className="px-4 py-2.5 text-sm font-semibold text-zinc-900 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full text-center"
               >
-                Join Waitlist
-              </a>
+                Get Started
+              </Link>
             </div>
           </div>
         </div>

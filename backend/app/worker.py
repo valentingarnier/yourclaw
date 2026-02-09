@@ -21,29 +21,39 @@ logging.basicConfig(
 logger = logging.getLogger("yourclaw.worker")
 
 
-async def get_anthropic_key(user_id: str) -> str:
-    """Get Anthropic API key for user (BYOK or shared).
+async def get_user_api_keys(user_id: str) -> dict[str, str]:
+    """Get all API keys for user (BYOK or shared).
 
     Args:
         user_id: User's UUID
 
     Returns:
-        API key to use
+        Dict with anthropic_api_key, openai_api_key, google_api_key
     """
     from app.services.encryption import decrypt
 
-    # Check for BYOK
-    api_key_row = await db.select(
-        "api_keys",
-        filters={"user_id": user_id, "provider": "ANTHROPIC"},
-        single=True,
-    )
+    # Start with shared keys
+    keys = {
+        "anthropic_api_key": settings.anthropic_api_key,
+        "openai_api_key": settings.openai_api_key,
+        "google_api_key": settings.google_api_key,
+    }
 
-    if api_key_row:
-        return decrypt(api_key_row["encrypted_key"])
+    # Check for BYOK keys
+    user_keys = await db.select("api_keys", filters={"user_id": user_id})
 
-    # Use shared key
-    return settings.anthropic_api_key
+    for key_row in user_keys:
+        provider = key_row["provider"]
+        decrypted = decrypt(key_row["encrypted_key"])
+
+        if provider == "ANTHROPIC":
+            keys["anthropic_api_key"] = decrypted
+        elif provider == "OPENAI":
+            keys["openai_api_key"] = decrypted
+        elif provider == "GOOGLE":
+            keys["google_api_key"] = decrypted
+
+    return keys
 
 
 async def get_user_integrations(user_id: str) -> dict[str, str]:
@@ -124,19 +134,22 @@ async def get_allocated_ports() -> list[int]:
 
 
 async def send_ready_notification(user_id: str) -> None:
-    """Send WhatsApp notification that assistant is ready.
+    """Send WhatsApp template notification that assistant is ready.
+
+    Uses pre-approved template message to bypass 24-hour session window.
 
     Args:
         user_id: User's UUID
     """
-    from app.routers.webhooks import send_twilio_message
+    from app.routers.webhooks import send_twilio_template
 
     phone_row = await db.select("user_phones", filters={"user_id": user_id}, single=True)
     if phone_row:
-        await send_twilio_message(
+        await send_twilio_template(
             phone_row["phone_e164"],
-            "Your YourClaw assistant is ready! Send me a message to get started."
+            settings.twilio_template_assistant_ready,
         )
+        logger.info(f"Sent assistant ready notification to {phone_row['phone_e164']}")
 
 
 async def process_job(job: dict) -> None:
@@ -171,8 +184,9 @@ async def process_job(job: dict) -> None:
         # Generate gateway token
         gateway_token = str(uuid.uuid4())
 
-        # Get API key
-        anthropic_key = await get_anthropic_key(user_id)
+        # Get all API keys (BYOK or shared)
+        api_keys = await get_user_api_keys(user_id)
+        logger.info(f"User {user_id} API keys: ANTHROPIC={'BYOK' if api_keys['anthropic_api_key'] != settings.anthropic_api_key else 'shared'}, OPENAI={'BYOK' if api_keys['openai_api_key'] != settings.openai_api_key else 'shared'}, GOOGLE={'BYOK' if api_keys['google_api_key'] != settings.google_api_key else 'shared'}")
 
         # Get user integrations (Google Calendar, Gmail, Drive)
         integrations = await get_user_integrations(user_id)
@@ -184,12 +198,14 @@ async def process_job(job: dict) -> None:
         model = assistant.get("model", "anthropic/claude-sonnet-4-5-20250929") if assistant else "anthropic/claude-sonnet-4-5-20250929"
         logger.info(f"User {user_id} selected model: {model}")
 
-        # Create container
+        # Create container with all LLM API keys (BYOK or shared)
         container_id = await container_service.create_container(
             user_id=user_id,
             port=port,
             gateway_token=gateway_token,
-            anthropic_api_key=anthropic_key,
+            anthropic_api_key=api_keys["anthropic_api_key"],
+            openai_api_key=api_keys["openai_api_key"],
+            google_api_key=api_keys["google_api_key"],
             integrations=integrations,
             model=model,
         )

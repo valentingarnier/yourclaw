@@ -282,6 +282,35 @@ async def send_twilio_message(to_number: str, body: str, from_number: str | None
     logger.info(f"Twilio message sent: SID={message.sid}, status={message.status}")
 
 
+async def send_twilio_template(to_number: str, content_sid: str, from_number: str | None = None) -> None:
+    """Send WhatsApp template message via Twilio Content API.
+
+    Template messages can be sent outside the 24-hour session window.
+
+    Args:
+        to_number: Recipient phone number (E.164 format, no whatsapp: prefix)
+        content_sid: Twilio Content Template SID (starts with HX)
+        from_number: Sender (Twilio WhatsApp number with whatsapp: prefix).
+                     If None, uses TWILIO_WHATSAPP_NUMBER from env.
+    """
+    if settings.mock_twilio:
+        logger.info(f"[Mock Twilio Template] To {to_number}, template={content_sid}")
+        return
+
+    from twilio.rest import Client
+
+    sender = from_number or settings.twilio_whatsapp_number
+    logger.info(f"Sending Twilio template: from={sender}, to=whatsapp:{to_number}, content_sid={content_sid}")
+
+    client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+    message = client.messages.create(
+        from_=sender,
+        to=f"whatsapp:{to_number}",
+        content_sid=content_sid,
+    )
+    logger.info(f"Twilio template sent: SID={message.sid}, status={message.status}")
+
+
 @router.post("/stripe")
 async def stripe_webhook(request: Request) -> dict:
     """Handle Stripe webhook events.
