@@ -60,7 +60,7 @@ def build_openclaw_config(gateway_token: str, model: str = DEFAULT_MODEL) -> dic
         # instead).  "deny" removes the tool from the LLM's tool list entirely.
         "tools": {
             "profile": "full",
-            "deny": ["browser"],
+            "deny": ["browser", "playwright_browser_install"],
             "web": {
                 "search": {"enabled": True},
                 "fetch": {"enabled": True}
