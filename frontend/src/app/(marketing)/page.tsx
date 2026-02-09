@@ -10,28 +10,6 @@ import {
   ChevronDownIcon,
   CheckIcon,
   ArrowRightIcon,
-  BellIcon,
-  LanguageIcon,
-  InboxIcon,
-  ChatBubbleLeftRightIcon,
-  DocumentTextIcon,
-  CurrencyDollarIcon,
-  DocumentDuplicateIcon,
-  CreditCardIcon,
-  MagnifyingGlassIcon,
-  TagIcon,
-  ArrowTrendingDownIcon,
-  AdjustmentsHorizontalIcon,
-  PresentationChartBarIcon,
-  PaperAirplaneIcon,
-  CakeIcon,
-  ShareIcon,
-  PencilSquareIcon,
-  ChartBarIcon,
-  FunnelIcon,
-  BriefcaseIcon,
-  UserGroupIcon,
-  ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { MouseGradient, SpotlightCard, TiltCard } from "@/components/marketing/mouse-gradient";
@@ -42,7 +20,7 @@ export default function HomePage() {
       <MouseGradient />
       <HeroSection />
       <TimeComparisonSection />
-      <UseCasesMarquee />
+      <UseCasesSection />
       <FeaturesSection />
       <PhoneDemoSection />
       <HowItWorks />
@@ -332,87 +310,68 @@ function HeroSection() {
 }
 
 function TimeComparisonSection() {
-  const diySteps = [
-    { task: "Rent a cloud server (VPS)", time: "15 min" },
-    { task: "Set up SSH and security", time: "10 min" },
-    { task: "Install Node.js & dependencies", time: "10 min" },
-    { task: "Install and configure OpenClaw", time: "15 min" },
-    { task: "Connect to WhatsApp", time: "10 min" },
-    { task: "Test and debug setup", time: "20 min" },
+  const painPoints = [
+    "Rent and configure a server",
+    "Install dependencies manually",
+    "Debug cryptic error messages",
+    "Handle security updates",
+    "Monitor uptime 24/7",
+    "Maintain your own code",
   ];
-
-  const totalDiyTime = 80; // minutes
 
   return (
     <section className="py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Save <span className="gradient-text">hours of setup</span>
+            Skip the <span className="gradient-text">technical headaches</span>
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            Setting up your own AI assistant is complex. We handle everything so you don't have to.
+            Building your own AI assistant means dealing with servers, configs, and maintenance.
+            <br />We handle all of that for you.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* DIY Column */}
-          <div className="relative p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">Do it yourself</h3>
-              <span className="px-3 py-1 rounded-full bg-red-500/10 text-red-400 text-sm font-medium">
-                ~{totalDiyTime} min
-              </span>
-            </div>
-
-            <div className="space-y-3 mb-6">
-              {diySteps.map((step, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                  <span className="text-zinc-400 text-sm">{step.task}</span>
-                  <span className="text-zinc-500 text-sm">{step.time}</span>
+        <div className="grid lg:grid-cols-5 gap-8 items-center">
+          {/* Pain points - crossed out */}
+          <div className="lg:col-span-3 p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
+            <p className="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-6">
+              What you&apos;ll never deal with
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {painPoints.map((point, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 group"
+                >
+                  <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                  <span className="text-zinc-500 line-through decoration-zinc-700">{point}</span>
                 </div>
               ))}
-            </div>
-
-            <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
-              <p className="text-sm text-red-400">
-                <span className="font-semibold">Plus:</span> debugging errors, security updates, and ongoing maintenance.
-              </p>
             </div>
           </div>
 
-          {/* YourClaw Column */}
-          <div className="relative p-6 rounded-2xl bg-gradient-to-b from-emerald-500/10 to-zinc-900/50 border border-emerald-500/20">
-            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
-
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">With YourClaw</h3>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-sm font-medium">
-                &lt;2 min
-              </span>
+          {/* Arrow */}
+          <div className="hidden lg:flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <ArrowRightIcon className="w-5 h-5 text-emerald-400" />
             </div>
+          </div>
 
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="text-6xl font-bold gradient-text mb-4">2</div>
-              <p className="text-xl text-white mb-2">minutes</p>
-              <p className="text-zinc-400 text-center">
-                Enter your phone, sign in with Google, done.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {[
-                "No server to manage",
-                "No technical knowledge required",
-                "No maintenance or updates",
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                    <CheckIcon className="w-3 h-3 text-emerald-400" />
-                  </div>
-                  <span className="text-zinc-300 text-sm">{item}</span>
-                </div>
-              ))}
+          {/* Simple solution */}
+          <div className="lg:col-span-1">
+            <div className="relative p-6 rounded-2xl bg-gradient-to-b from-emerald-500/10 to-zinc-900/50 border border-emerald-500/20 text-center">
+              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+              <div className="text-4xl font-bold gradient-text mb-2">Just text.</div>
+              <p className="text-zinc-400 text-sm">That&apos;s it.</p>
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <p className="text-xs text-zinc-500">Setup time</p>
+                <p className="text-lg font-semibold text-emerald-400">~2 min</p>
+              </div>
             </div>
           </div>
         </div>
@@ -421,43 +380,35 @@ function TimeComparisonSection() {
   );
 }
 
-function UseCasesMarquee() {
-  const useCases = [
-    { icon: BellIcon, text: "Set reminders and follow-ups" },
-    { icon: LanguageIcon, text: "Translate messages in real time" },
-    { icon: InboxIcon, text: "Organize your inbox" },
-    { icon: ChatBubbleLeftRightIcon, text: "Answer support tickets" },
-    { icon: DocumentTextIcon, text: "Summarize long documents" },
-    { icon: CurrencyDollarIcon, text: "Track expenses and receipts" },
-    { icon: DocumentDuplicateIcon, text: "Compare insurance quotes" },
-    { icon: CreditCardIcon, text: "Manage subscriptions" },
-    { icon: ClockIcon, text: "Remind you of deadlines" },
-    { icon: MagnifyingGlassIcon, text: "Find best prices online" },
-    { icon: TagIcon, text: "Find discount codes" },
-    { icon: ArrowTrendingDownIcon, text: "Price-drop alerts" },
-    { icon: AdjustmentsHorizontalIcon, text: "Compare product specs" },
-    { icon: ChatBubbleLeftRightIcon, text: "Negotiate deals" },
-    { icon: PresentationChartBarIcon, text: "Create presentations from bullet points" },
-    { icon: PaperAirplaneIcon, text: "Book travel and hotels" },
-    { icon: CakeIcon, text: "Find recipes from ingredients" },
-    { icon: ShareIcon, text: "Draft social posts" },
-    { icon: PencilSquareIcon, text: "Write content and copy" },
-    { icon: ChartBarIcon, text: "Set and track goals" },
-    { icon: FunnelIcon, text: "Screen cold outreach" },
-    { icon: BriefcaseIcon, text: "Draft job descriptions" },
-    { icon: UserGroupIcon, text: "Run standup summaries" },
-    { icon: ClipboardDocumentListIcon, text: "Track project progress" },
+function UseCasesSection() {
+  const categories = [
+    {
+      label: "Work",
+      color: "emerald",
+      items: ["Draft emails", "Summarize docs", "Research topics", "Create slides", "Track tasks"],
+    },
+    {
+      label: "Life",
+      color: "cyan",
+      items: ["Plan trips", "Find recipes", "Compare prices", "Track expenses", "Book hotels"],
+    },
+    {
+      label: "Create",
+      color: "purple",
+      items: ["Write copy", "Brainstorm", "Draft posts", "Translate text", "Edit content"],
+    },
   ];
 
-  // Split into rows for the marquee
-  const row1 = useCases.slice(0, 8);
-  const row2 = useCases.slice(8, 16);
-  const row3 = useCases.slice(16, 24);
+  const colorStyles: Record<string, { border: string; text: string; glow: string }> = {
+    emerald: { border: "border-emerald-500/30", text: "text-emerald-400", glow: "shadow-emerald-500/10" },
+    cyan: { border: "border-cyan-500/30", text: "text-cyan-400", glow: "shadow-cyan-500/10" },
+    purple: { border: "border-purple-500/30", text: "text-purple-400", glow: "shadow-purple-500/10" },
+  };
 
   return (
-    <section className="py-20 overflow-hidden">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-        <div className="text-center">
+    <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             What can <span className="gradient-text">YourClaw</span> do for you?
           </h2>
@@ -465,59 +416,57 @@ function UseCasesMarquee() {
             One assistant, endless possibilities
           </p>
         </div>
-      </div>
 
-      <div className="relative">
-        {/* Gradient fades */}
-        <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-zinc-950 to-transparent z-10" />
-        <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-zinc-950 to-transparent z-10" />
+        {/* Scrolling rows with category labels */}
+        <div className="space-y-6">
+          {categories.map((category, idx) => {
+            const colors = colorStyles[category.color];
+            const isReverse = idx % 2 === 1;
 
-        {/* Row 1 - scrolls right */}
-        <div className="flex gap-4 mb-4 animate-marquee">
-          {[...row1, ...row1].map((useCase, i) => (
-            <UseCasePill key={i} icon={useCase.icon} text={useCase.text} />
-          ))}
+            return (
+              <div key={category.label} className="relative">
+                {/* Category label */}
+                <div className={clsx(
+                  "absolute left-0 top-1/2 -translate-y-1/2 z-20 px-3 py-1 rounded-full text-xs font-medium bg-zinc-950 border",
+                  colors.border,
+                  colors.text
+                )}>
+                  {category.label}
+                </div>
+
+                {/* Scrolling items */}
+                <div className="relative overflow-hidden ml-16 sm:ml-20">
+                  <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-zinc-950 to-transparent z-10" />
+                  <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-zinc-950 to-transparent z-10" />
+
+                  <div className={clsx(
+                    "flex gap-3 py-2",
+                    isReverse ? "animate-marquee-reverse" : "animate-marquee-slow"
+                  )}>
+                    {[...category.items, ...category.items, ...category.items].map((item, i) => (
+                      <div
+                        key={i}
+                        className={clsx(
+                          "flex-shrink-0 px-4 py-2 rounded-lg bg-zinc-900/80 border text-sm text-zinc-300 whitespace-nowrap transition-all duration-300 hover:text-white shadow-lg",
+                          colors.border,
+                          colors.glow
+                        )}
+                      >
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Row 2 - scrolls left */}
-        <div className="flex gap-4 mb-4 animate-marquee-reverse">
-          {[...row2, ...row2].map((useCase, i) => (
-            <UseCasePill key={i} icon={useCase.icon} text={useCase.text} variant="outlined" />
-          ))}
-        </div>
-
-        {/* Row 3 - scrolls right slower */}
-        <div className="flex gap-4 animate-marquee-slow">
-          {[...row3, ...row3].map((useCase, i) => (
-            <UseCasePill key={i} icon={useCase.icon} text={useCase.text} />
-          ))}
-        </div>
+        <p className="text-center text-zinc-500 text-sm mt-10">
+          And much more — just ask.
+        </p>
       </div>
     </section>
-  );
-}
-
-function UseCasePill({
-  icon: Icon,
-  text,
-  variant = "filled",
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  text: string;
-  variant?: "filled" | "outlined";
-}) {
-  return (
-    <div
-      className={clsx(
-        "flex items-center gap-2 px-4 py-2.5 rounded-full whitespace-nowrap flex-shrink-0 transition-all duration-300",
-        variant === "filled"
-          ? "bg-zinc-900 border border-white/5 hover:border-white/10"
-          : "bg-transparent border border-dashed border-zinc-700 hover:border-zinc-500"
-      )}
-    >
-      <Icon className="w-4 h-4 text-zinc-500" />
-      <span className="text-sm text-zinc-300">{text}</span>
-    </div>
   );
 }
 
