@@ -55,9 +55,12 @@ def build_openclaw_config(gateway_token: str, model: str = DEFAULT_MODEL) -> dic
                 }
             }
         },
-        # Full tool access - no restrictions
+        # Full tool access - deny native browser (uses Chrome extension relay
+        # which doesn't work in headless Docker; Playwright MCP tools are used
+        # instead).  "deny" removes the tool from the LLM's tool list entirely.
         "tools": {
             "profile": "full",
+            "deny": ["browser"],
             "web": {
                 "search": {"enabled": True},
                 "fetch": {"enabled": True}
