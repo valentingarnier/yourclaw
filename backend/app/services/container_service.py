@@ -179,7 +179,24 @@ class ContainerService:
             # Production: Load key from content (env var)
             # Handle both raw content and escaped newlines
             key_content = self.ssh_key_content.replace("\\n", "\n")
-            pkey = paramiko.RSAKey.from_private_key(io.StringIO(key_content))
+            key_file = io.StringIO(key_content)
+
+            # Try each key type — env var key may be RSA, Ed25519, or ECDSA
+            pkey = None
+            for key_class in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
+                try:
+                    key_file.seek(0)
+                    pkey = key_class.from_private_key(key_file)
+                    break
+                except Exception:
+                    continue
+
+            if pkey is None:
+                raise Exception(
+                    "Failed to parse SSH key. Check HOST_SERVER_SSH_KEY env var "
+                    "(must be a valid private key with literal newlines or \\n escapes)."
+                )
+
             client.connect(
                 hostname=self.host_ip,
                 username="root",

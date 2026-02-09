@@ -458,13 +458,39 @@ function AssistantSection({
 
         <div className="mb-6">
           {assistant?.status === "READY" && (
-            <Text>
-              Your assistant is ready! Message your WhatsApp number to start chatting.
-              <br />
-              <span className="text-zinc-500 dark:text-zinc-400 text-sm">
-                Model: {currentModelInfo?.name || selectedModel}
-              </span>
-            </Text>
+            <div className="space-y-4">
+              <Text>
+                Your assistant is ready! Send a message to get started.
+                <br />
+                <span className="text-zinc-500 dark:text-zinc-400 text-sm">
+                  Model: {currentModelInfo?.name || selectedModel}
+                </span>
+              </Text>
+              <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
+                <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+                  Message your assistant on WhatsApp
+                </p>
+                <p className="text-sm text-green-800 dark:text-green-200 mb-3">
+                  Open WhatsApp and send a message to:
+                </p>
+                <div className="flex items-center gap-3">
+                  <code className="text-lg font-semibold text-green-900 dark:text-green-100 bg-green-100 dark:bg-green-800/50 px-3 py-1.5 rounded-lg">
+                    +1 (555) 758-9499
+                  </code>
+                  <a
+                    href="https://wa.me/15557589499?text=Hi"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
+                  >
+                    Open WhatsApp
+                  </a>
+                </div>
+                <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+                  Save this number as &quot;YourClaw&quot; in your contacts for easy access.
+                </p>
+              </div>
+            </div>
           )}
 
           {assistant?.status === "PROVISIONING" && (
