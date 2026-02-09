@@ -387,6 +387,7 @@ Each container gets `~/.openclaw/openclaw.json` with full capabilities including
   },
   "tools": {
     "profile": "full",
+    "deny": ["browser", "playwright_browser_install"],
     "web": {
       "search": { "enabled": true },
       "fetch": { "enabled": true }
@@ -405,16 +406,15 @@ Each container gets `~/.openclaw/openclaw.json` with full capabilities including
               "name": "playwright",
               "transport": "stdio",
               "command": "npx",
-              "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless"],
-              "env": {
-                "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH": "/usr/bin/chromium",
-                "CHROME_PATH": "/usr/bin/chromium"
-              }
+              "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless", "--executable-path", "/usr/bin/chromium"]
             }
           ]
         }
       }
     }
+  },
+  "browser": {
+    "enabled": false
   },
   "commands": {
     "restart": true
@@ -455,9 +455,11 @@ Browser automation uses Microsoft's [Playwright MCP server](https://github.com/m
 | `agents.defaults.blockStreamingDefault` | "on" | Stream responses for better UX |
 | `agents.defaults.compaction.memoryFlush` | enabled | Efficient memory management |
 | `tools.profile` | "full" | All tools enabled (fs, runtime, web, messaging) |
+| `tools.deny` | ["browser", "playwright_browser_install"] | Remove native browser + install tool from LLM's tool list |
 | `tools.web.search/fetch` | enabled | Web search and page fetching |
 | `tools.media.image` | enabled | Image analysis via vision models |
-| `plugins.entries.openclaw-mcp-adapter` | enabled | Playwright browser automation |
+| `browser.enabled` | false | Disable native browser control service (Chrome extension relay) |
+| `plugins.entries.openclaw-mcp-adapter` | enabled | Playwright browser automation (22 tools) |
 
 ### Tool Profiles Reference
 
@@ -1072,21 +1074,29 @@ async def send_ready_notification(user_id: str) -> None:
 4. Add Content SID to config and code
 
 ### Next Steps (in order)
-1. **Switch WhatsApp replies to REST API** (BLOCKED — waiting for Meta Business Account full approval):
+1. **Increase Anthropic API rate limit** (ACTION REQUIRED):
+   - Current limit: 50k input tokens/min on Haiku (Tier 1 — lowest)
+   - Browser automation burns 20-30k tokens per turn (tool defs + snapshots + history)
+   - With 100 users, 2-3 concurrent requests would exhaust the limit
+   - Fix: Go to console.anthropic.com → Settings → Limits, or contact Anthropic sales
+   - Adding a credit card / depositing funds usually auto-upgrades tier
+   - Target: Tier 2+ (200k-2M+ tokens/min)
+2. **Switch WhatsApp replies to REST API** (BLOCKED — waiting for Meta Business Account full approval):
    - Currently using TwiML inline responses (synchronous, ~15s timeout)
    - Once Meta approves outbound sending, switch to async REST API (no timeout)
    - Code change: in `webhooks.py`, uncomment REST API mode in `reply_message()`
    - Test: send a message and verify reply arrives via REST API (not TwiML)
    - Remove the TwiML fallback once confirmed working
    - Template messages (`send_ready_notification`) will also start working
-2. **Enable big models** (BLOCKED — TwiML 15s timeout):
+   - Browser automation will work end-to-end (needs 30-60s for multi-step tasks)
+3. **Enable big models** (BLOCKED — TwiML 15s timeout):
    - Opus 4.5, GPT-4o, Gemini 2.0 Flash marked "Coming Soon" in dashboard
    - These models are too slow for TwiML inline (>15s responses)
    - Once REST API is active (no timeout), remove `comingSoon` flag from models in `api.ts`
-3. **Rate Limits** (TODO):
+4. **Rate Limits** (TODO):
    - [ ] Implement daily message rate limits (e.g., 100 msg/day per user)
    - [ ] Implement per-minute rate limits (e.g., 5 msg/min)
-4. **Post-launch: Google Integrations** (PAUSED - not production ready):
+5. **Post-launch: Google Integrations** (PAUSED - not production ready):
    - [x] Backend complete: OAuth flow, token storage, MCP config injection
    - [x] Frontend complete: Connected Services UI (currently hidden)
    - [ ] Test with real Google OAuth credentials
@@ -1094,6 +1104,14 @@ async def send_ready_notification(user_id: str) -> None:
    - [ ] Re-enable in dashboard when ready
 
 ### Completed
+- [x] **Browser tool fix — native browser disabled, Playwright MCP working** (2026-02-09):
+  - **Problem**: OpenClaw has two browser systems: native (Chrome extension relay) and Playwright MCP. The native tool was in the LLM's tool list, so it tried to use it first — but it can't work in a headless Docker container (no Chrome extension). Even after disabling it with `browser.enabled: false`, the tool definition was still sent to the LLM.
+  - **Fix 1**: `tools.deny: ["browser", "playwright_browser_install"]` — removes native browser tool AND the install tool from the LLM's tool list entirely. The LLM only sees `playwright_browser_*` tools.
+  - **Fix 2**: `browser.enabled: false` — belt-and-suspenders, prevents the browser control service from starting.
+  - **Fix 3**: `--executable-path /usr/bin/chromium` added to Playwright MCP args — the env vars (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`) were ignored by the MCP server, it needs the CLI flag.
+  - **Fix 4**: Updated CLAUDE.md system instructions in workspace to list all `playwright_browser_*` tools.
+  - **Verified**: Tested directly on container — example.com and booking.com both return full page content via Playwright MCP.
+  - **Remaining limitation**: Browser automation needs 30-60s for multi-step tasks, incompatible with TwiML 15s timeout. Works via direct API, will work on WhatsApp once REST API mode is enabled.
 - [x] **TwiML fallback + production fixes** (2026-02-09):
   - Switched to TwiML inline responses (Meta outbound not approved yet)
   - Reduced conversation history from 20 to 10 messages (faster responses within 15s TwiML timeout)
