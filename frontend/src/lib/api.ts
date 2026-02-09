@@ -74,9 +74,14 @@ export interface UserProfile {
   id: string;
   email: string;
   phone: string | null;
+  channel: string | null; // "WHATSAPP" | "TELEGRAM"
+  telegram_username: string | null;
+  telegram_connected: boolean;
   subscription_status: string | null;
   assistant_status: string | null;
 }
+
+export const TELEGRAM_BOT_USERNAME = "Yourclawdev_bot";
 
 // Available models for selection
 export const AVAILABLE_MODELS = [
@@ -160,6 +165,12 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
 export const api = {
   getMe: () => apiGet<UserProfile>("/api/v1/users/me"),
   setPhone: (phone: string) => apiPost<UserProfile>("/api/v1/users/me/phone", { phone }),
+  setChannel: (channel: string, phone?: string, telegramUsername?: string) =>
+    apiPost<UserProfile>("/api/v1/users/me/channel", {
+      channel,
+      phone: phone || undefined,
+      telegram_username: telegramUsername || undefined,
+    }),
   getAssistant: () => apiGet<AssistantResponse>("/api/v1/assistants"),
   createAssistant: (model?: string) => apiPost<{ status: string; model: string }>("/api/v1/assistants", { model: model || DEFAULT_MODEL }),
   updateAssistant: (model: string) => apiPatch<AssistantResponse>("/api/v1/assistants", { model }),

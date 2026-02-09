@@ -111,7 +111,7 @@ export default function DashboardPage() {
         setSelectedModel(assistantData.model);
       }
 
-      if (!userData.phone) {
+      if (!userData.phone && !userData.telegram_username) {
         router.push("/onboarding");
         return;
       }
@@ -257,7 +257,7 @@ export default function DashboardPage() {
             <Avatar initials={userInitials} className="size-8 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" />
             <SidebarLabel className="flex flex-col items-start">
               <span className="text-sm font-medium">{user?.email?.split("@")[0]}</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{user?.phone}</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? `@${user?.telegram_username}` : user?.phone}</span>
             </SidebarLabel>
             <ChevronUpIcon className="ml-auto size-4" />
           </DropdownButton>
@@ -360,7 +360,7 @@ function AssistantSection({
     <div className="space-y-8">
       <div>
         <Heading>Assistant</Heading>
-        <Text className="mt-2">Manage your AI assistant on WhatsApp.</Text>
+        <Text className="mt-2">Manage your AI assistant on {user?.channel === "TELEGRAM" ? "Telegram" : "WhatsApp"}.</Text>
       </div>
 
       <Divider />
@@ -471,41 +471,81 @@ function AssistantSection({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-zinc-950/10 dark:border-white/10 overflow-hidden">
-                <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
-                  <div className="size-8 rounded-full bg-white/20 flex items-center justify-center">
-                    <svg className="size-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.61.61l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.593-.838-6.315-2.234l-.44-.366-3.09 1.036 1.036-3.09-.366-.44A9.953 9.953 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
-                    </svg>
+              {/* Channel-specific card */}
+              {user?.channel === "TELEGRAM" ? (
+                <div className="rounded-xl border border-zinc-950/10 dark:border-white/10 overflow-hidden">
+                  <div className="bg-[#0088CC] px-4 py-3 flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-white/20 flex items-center justify-center">
+                      <svg className="size-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-white">Telegram</span>
+                    {user?.telegram_connected && (
+                      <Badge color="emerald" className="ml-auto">Connected</Badge>
+                    )}
                   </div>
-                  <span className="text-sm font-medium text-white">WhatsApp</span>
-                </div>
-                <div className="px-4 py-4 space-y-3">
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    Send a message to start chatting with your assistant:
-                  </p>
-                  <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
-                    <span className="text-base font-mono font-semibold text-zinc-950 dark:text-white tracking-wide">
-                      +1 (555) 758-9499
-                    </span>
+                  <div className="px-4 py-4 space-y-3">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {user?.telegram_connected
+                        ? "Your assistant is connected! Send a message to chat."
+                        : "Message the bot to activate your assistant:"}
+                    </p>
+                    <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                      <span className="text-base font-mono font-semibold text-zinc-950 dark:text-white">
+                        @Yourclawdev_bot
+                      </span>
+                    </div>
+                    <a
+                      href="https://t.me/Yourclawdev_bot"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0088CC] hover:bg-[#006DA4] px-4 py-2.5 text-sm font-medium text-white transition-colors"
+                    >
+                      <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                      </svg>
+                      Open Telegram
+                    </a>
                   </div>
-                  <a
-                    href={`https://wa.me/15557589499?text=${encodeURIComponent("Hello, are you there?")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] hover:bg-[#20BD5A] px-4 py-2.5 text-sm font-medium text-white transition-colors"
-                  >
-                    <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                    </svg>
-                    Open WhatsApp
-                  </a>
-                  <p className="text-xs text-center text-zinc-400 dark:text-zinc-500">
-                    Save this number as &quot;YourClaw&quot; for easy access
-                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-xl border border-zinc-950/10 dark:border-white/10 overflow-hidden">
+                  <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-white/20 flex items-center justify-center">
+                      <svg className="size-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.61.61l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.593-.838-6.315-2.234l-.44-.366-3.09 1.036 1.036-3.09-.366-.44A9.953 9.953 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-white">WhatsApp</span>
+                  </div>
+                  <div className="px-4 py-4 space-y-3">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      Send a message to start chatting with your assistant:
+                    </p>
+                    <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                      <span className="text-base font-mono font-semibold text-zinc-950 dark:text-white tracking-wide">
+                        +1 (555) 758-9499
+                      </span>
+                    </div>
+                    <a
+                      href={`https://wa.me/15557589499?text=${encodeURIComponent("Hello, are you there?")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] hover:bg-[#20BD5A] px-4 py-2.5 text-sm font-medium text-white transition-colors"
+                    >
+                      <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                      </svg>
+                      Open WhatsApp
+                    </a>
+                    <p className="text-xs text-center text-zinc-400 dark:text-zinc-500">
+                      Save this number as &quot;YourClaw&quot; for easy access
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -520,7 +560,7 @@ function AssistantSection({
           )}
 
           {(!assistant || assistant.status === "NONE") && (
-            <Text>Create your AI assistant to get started with WhatsApp automation.</Text>
+            <Text>Create your AI assistant to get started with {user?.channel === "TELEGRAM" ? "Telegram" : "WhatsApp"} automation.</Text>
           )}
         </div>
 
@@ -647,8 +687,8 @@ function UsageSection({ usage, user }: { usage: UsageResponse | null; user: User
             <p className="text-sm font-medium text-zinc-950 dark:text-white mt-1">{user?.email}</p>
           </div>
           <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">WhatsApp</p>
-            <p className="text-sm font-medium text-zinc-950 dark:text-white mt-1">{user?.phone}</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? "Telegram" : "WhatsApp"}</p>
+            <p className="text-sm font-medium text-zinc-950 dark:text-white mt-1">{user?.channel === "TELEGRAM" ? `@${user?.telegram_username}` : user?.phone}</p>
           </div>
           <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">Subscription</p>

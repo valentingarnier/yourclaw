@@ -33,7 +33,9 @@ export default function HomePage() {
 
 function HeroSection() {
   const [selectedModel, setSelectedModel] = useState<"claude" | "openai" | "gemini">("claude");
+  const [channel, setChannel] = useState<"WHATSAPP" | "TELEGRAM">("WHATSAPP");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [telegramUsername, setTelegramUsername] = useState("");
   const [error, setError] = useState("");
 
   const models = [
@@ -104,27 +106,43 @@ function HeroSection() {
   };
 
   const handleSignIn = () => {
-    // Validate phone
-    const e164Phone = formatToE164(phoneNumber);
-    const phoneRegex = /^\+[1-9]\d{7,14}$/;
+    if (channel === "WHATSAPP") {
+      const e164Phone = formatToE164(phoneNumber);
+      const phoneRegex = /^\+[1-9]\d{7,14}$/;
 
-    if (!phoneNumber) {
-      setError("Please enter your WhatsApp number");
-      return;
+      if (!phoneNumber) {
+        setError("Please enter your WhatsApp number");
+        return;
+      }
+
+      if (!phoneRegex.test(e164Phone)) {
+        setError("Please enter a valid phone number");
+        return;
+      }
+
+      localStorage.setItem("yourclaw_signup", JSON.stringify({
+        channel: "WHATSAPP",
+        phone: e164Phone,
+        model: selectedModel,
+      }));
+    } else {
+      const usernameRegex = /^@?[a-zA-Z0-9_]{5,32}$/;
+      if (!telegramUsername) {
+        setError("Please enter your Telegram username");
+        return;
+      }
+      if (!usernameRegex.test(telegramUsername)) {
+        setError("Please enter a valid Telegram username (5-32 characters)");
+        return;
+      }
+
+      localStorage.setItem("yourclaw_signup", JSON.stringify({
+        channel: "TELEGRAM",
+        telegramUsername: telegramUsername.replace(/^@/, ""),
+        model: selectedModel,
+      }));
     }
 
-    if (!phoneRegex.test(e164Phone)) {
-      setError("Please enter a valid phone number");
-      return;
-    }
-
-    // Store in localStorage for onboarding to pick up
-    localStorage.setItem("yourclaw_signup", JSON.stringify({
-      phone: e164Phone,
-      model: selectedModel,
-    }));
-
-    // Redirect to login
     window.location.href = "/login";
   };
 
@@ -157,12 +175,12 @@ function HeroSection() {
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6 animate-reveal" style={{ animationDelay: "0.1s" }}>
               <span className="text-white">Your personal AI</span>
               <br />
-              <span className="gradient-text text-glow">on WhatsApp</span>
+              <span className="gradient-text text-glow">on WhatsApp & Telegram</span>
             </h1>
 
             {/* Subheadline */}
             <p className="text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0 mb-8 animate-reveal" style={{ animationDelay: "0.2s" }}>
-              A full-power AI assistant that works 24/7 — research, write, analyze, and automate tasks. Just text it. No apps, no setup, no coding.
+              A full-power AI assistant that works 24/7 on WhatsApp or Telegram — research, write, analyze, and automate tasks. Just text it. No apps, no setup, no coding.
             </p>
 
             {/* Stats */}
@@ -224,36 +242,86 @@ function HeroSection() {
                   </div>
                 </div>
 
-                {/* Step 2: Phone Number */}
+                {/* Step 2: Channel + Contact */}
                 <div className="mb-6">
                   <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-3">
                     <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">2</span>
-                    Your WhatsApp number
+                    Choose your channel
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-                      </svg>
-                    </div>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={handlePhoneChange}
-                      placeholder="+1 555 123 4567"
+                  {/* Channel toggle */}
+                  <div className="flex rounded-xl bg-white/5 border border-white/10 p-1 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => { setChannel("WHATSAPP"); setError(""); }}
                       className={clsx(
-                        "w-full pl-12 pr-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
-                        error
-                          ? "border-red-500/50 focus:ring-red-500/30"
-                          : "border-white/10 focus:ring-emerald-500/30 focus:border-emerald-500/50"
+                        "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                        channel === "WHATSAPP"
+                          ? "bg-white/10 text-white"
+                          : "text-zinc-500 hover:text-zinc-300"
                       )}
-                    />
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                      WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setChannel("TELEGRAM"); setError(""); }}
+                      className={clsx(
+                        "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                        channel === "TELEGRAM"
+                          ? "bg-white/10 text-white"
+                          : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                      Telegram
+                    </button>
                   </div>
+                  {/* Conditional input */}
+                  {channel === "WHATSAPP" ? (
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                        </svg>
+                      </div>
+                      <input
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={handlePhoneChange}
+                        placeholder="+1 555 123 4567"
+                        className={clsx(
+                          "w-full pl-12 pr-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
+                          error
+                            ? "border-red-500/50 focus:ring-red-500/30"
+                            : "border-white/10 focus:ring-emerald-500/30 focus:border-emerald-500/50"
+                        )}
+                      />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <span className="text-zinc-500 text-sm font-medium">@</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={telegramUsername}
+                        onChange={(e) => { setTelegramUsername(e.target.value.replace(/^@/, "")); setError(""); }}
+                        placeholder="username"
+                        className={clsx(
+                          "w-full pl-10 pr-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
+                          error
+                            ? "border-red-500/50 focus:ring-red-500/30"
+                            : "border-white/10 focus:ring-emerald-500/30 focus:border-emerald-500/50"
+                        )}
+                      />
+                    </div>
+                  )}
                   {error && (
                     <p className="mt-2 text-sm text-red-400">{error}</p>
                   )}
                   <p className="mt-2 text-xs text-zinc-500">
-                    Include country code (e.g., +1 for US)
+                    {channel === "WHATSAPP" ? "Include country code (e.g., +1 for US)" : "Your Telegram username (without the @)"}
                   </p>
                 </div>
 
@@ -488,7 +556,7 @@ function FeaturesSection() {
     {
       icon: BoltIcon,
       title: "Instant setup",
-      description: "Sign up, enter your phone number, done. No VPS, no terminal, no DevOps knowledge required.",
+      description: "Sign up, choose WhatsApp or Telegram, done. No VPS, no terminal, no DevOps knowledge required.",
       gradient: "from-purple-500 to-pink-500",
     },
     {
@@ -544,10 +612,10 @@ function PhoneDemoSection() {
           <div>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
               Get things done{" "}
-              <span className="gradient-text">without leaving WhatsApp</span>
+              <span className="gradient-text">without leaving your chat</span>
             </h2>
             <p className="text-lg text-zinc-400 mb-8">
-              Just text your assistant like you'd text a friend.
+              Just text your assistant like you&apos;d text a friend on WhatsApp or Telegram.
               Research, analyze, write, plan — all through natural conversation.
             </p>
 
@@ -720,7 +788,7 @@ function HowItWorks() {
     {
       number: "01",
       title: "Choose & Configure",
-      description: "Select your AI model and enter your WhatsApp number directly on our homepage.",
+      description: "Select your AI model, choose WhatsApp or Telegram, and enter your details.",
     },
     {
       number: "02",
@@ -730,7 +798,7 @@ function HowItWorks() {
     {
       number: "03",
       title: "Start chatting",
-      description: "Your assistant sends you a message. Ask anything, manage your calendar, search emails.",
+      description: "Your assistant sends you a message on WhatsApp or Telegram. Ask anything, anytime.",
     },
   ];
 
@@ -841,15 +909,15 @@ function FAQSection() {
   const faqs = [
     {
       question: "What is YourClaw?",
-      answer: "YourClaw gives you a personal AI assistant on WhatsApp. Powered by OpenClaw — a powerful open-source AI agent framework — it can research, write, analyze, code, and help with any task. All through simple chat.",
+      answer: "YourClaw gives you a personal AI assistant on WhatsApp or Telegram. Powered by OpenClaw — a powerful open-source AI agent framework — it can research, write, analyze, code, and help with any task. All through simple chat.",
     },
     {
       question: "How is this different from ChatGPT?",
-      answer: "YourClaw is a full AI agent, not just a chatbot. It can browse the web, run code, create files, and take real actions. Plus, it's on WhatsApp — no app switching, no browser tabs. Just text.",
+      answer: "YourClaw is a full AI agent, not just a chatbot. It can browse the web, run code, create files, and take real actions. Plus, it&apos;s on WhatsApp or Telegram — no app switching, no browser tabs. Just text.",
     },
     {
       question: "Do I need to download an app?",
-      answer: "No app needed. Everything happens through WhatsApp. Just sign up, enter your phone number, and start chatting. Your assistant texts you when it's ready.",
+      answer: "No app needed. Everything happens through WhatsApp or Telegram. Just sign up, choose your channel, and start chatting. Your assistant messages you when it&apos;s ready.",
     },
     {
       question: "Is my data safe?",
@@ -923,7 +991,7 @@ function CTASection() {
               Ready to get started?
             </h2>
             <p className="text-lg text-zinc-400 mb-8 max-w-xl mx-auto">
-              Get your personal AI assistant on WhatsApp in under 2 minutes.
+              Get your personal AI assistant on WhatsApp or Telegram in under 2 minutes.
             </p>
             <Link
               href="/login"
