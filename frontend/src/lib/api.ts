@@ -81,15 +81,15 @@ export interface UserProfile {
 // Available models for selection
 export const AVAILABLE_MODELS = [
   // Anthropic
-  { id: "anthropic/claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic" },
-  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful", provider: "anthropic" },
-  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic" },
+  { id: "anthropic/claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic", comingSoon: false },
+  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful", provider: "anthropic", comingSoon: true },
+  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic", comingSoon: false },
   // OpenAI
-  { id: "openai/gpt-4o", name: "GPT-4o", description: "OpenAI's flagship model", provider: "openai" },
-  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and affordable", provider: "openai" },
+  { id: "openai/gpt-4o", name: "GPT-4o", description: "OpenAI's flagship model", provider: "openai", comingSoon: true },
+  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and affordable", provider: "openai", comingSoon: true },
   // Google
-  { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Google's fast model", provider: "google" },
-  { id: "google/gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", description: "Lightweight and fast", provider: "google" },
+  { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Google's fast model", provider: "google", comingSoon: true },
+  { id: "google/gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", description: "Lightweight and fast", provider: "google", comingSoon: true },
 ] as const;
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";

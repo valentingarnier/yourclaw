@@ -89,21 +89,15 @@ async def twilio_whatsapp(request: Request) -> Response:
 
     user_id = phone_row["user_id"]
 
-    # Check if using sandbox (sandbox requires TwiML response, not REST API)
-    is_sandbox = "+14155238886" in to_number
+    # Reply mode: TwiML inline (works without Meta approval for outbound)
+    # TODO: Switch to REST API once Meta approves WhatsApp Business Account for outbound
+    # is_production_rest = "+14155238886" not in to_number  # Re-enable when approved
 
     async def reply_message(msg: str) -> Response:
-        """Send reply via TwiML (sandbox) or REST API (production)."""
+        """Send reply via TwiML inline response."""
         import html
-        if is_sandbox:
-            escaped = html.escape(msg)
-            return Response(content=f"<Response><Message>{escaped}</Message></Response>", media_type="application/xml")
-        else:
-            try:
-                await send_twilio_message(from_number, msg, to_number)
-            except Exception as e:
-                logger.error(f"Failed to send Twilio reply: {e}")
-            return Response(content="<Response></Response>", media_type="application/xml")
+        escaped = html.escape(msg)
+        return Response(content=f"<Response><Message>{escaped}</Message></Response>", media_type="application/xml")
 
     # Check assistant is ready
     assistant = await db.select("assistants", filters={"user_id": user_id}, single=True)
@@ -155,7 +149,7 @@ async def twilio_whatsapp(request: Request) -> Response:
     gateway_token = decrypt(assistant["gateway_token_encrypted"])
 
     # Get conversation history (includes the message we just inserted)
-    conversation = await get_conversation_history(user_id, limit=20)
+    conversation = await get_conversation_history(user_id, limit=10)
     logger.info(f"Conversation history: {len(conversation)} messages")
 
     try:

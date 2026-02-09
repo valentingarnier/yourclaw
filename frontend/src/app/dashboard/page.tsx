@@ -1096,19 +1096,32 @@ function ModelButton({
   disabled: boolean;
   onClick: () => void;
 }) {
+  const isComingSoon = model.comingSoon;
+  const isDisabled = disabled || isComingSoon;
+
   return (
     <button
-      onClick={onClick}
-      disabled={disabled}
+      onClick={isComingSoon ? undefined : onClick}
+      disabled={isDisabled}
       className={`relative rounded-lg border p-4 text-left transition-all ${
-        selected
-          ? "border-zinc-950 dark:border-white bg-zinc-50 dark:bg-zinc-800"
-          : "border-zinc-950/10 dark:border-white/10 hover:border-zinc-950/30 dark:hover:border-white/30"
-      } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+        isComingSoon
+          ? "border-zinc-950/5 dark:border-white/5 opacity-60 cursor-default"
+          : selected
+            ? "border-zinc-950 dark:border-white bg-zinc-50 dark:bg-zinc-800"
+            : "border-zinc-950/10 dark:border-white/10 hover:border-zinc-950/30 dark:hover:border-white/30"
+      } ${isDisabled && !isComingSoon ? "opacity-50 cursor-not-allowed" : !isComingSoon ? "cursor-pointer" : ""}`}
     >
-      <p className="text-sm font-medium text-zinc-950 dark:text-white">{model.name}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-zinc-950 dark:text-white">{model.name}</p>
+        {isComingSoon && (
+          <Badge color="amber" className="flex items-center gap-1 text-[10px]">
+            <ClockIcon className="size-3" />
+            Soon
+          </Badge>
+        )}
+      </div>
       <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{model.description}</p>
-      {selected && (
+      {selected && !isComingSoon && (
         <div className="absolute top-2 right-2 size-2 rounded-full bg-green-500" />
       )}
     </button>

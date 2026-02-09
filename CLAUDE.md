@@ -985,50 +985,38 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
   - [x] DELETE /assistants now keeps container_id (was clearing it immediately)
   - [x] Worker cleanup_deleted_assistants() properly stops containers with status=NONE
 
-### WhatsApp: Sandbox vs Production Mode (IMPORTANT)
+### WhatsApp: Reply Mode (IMPORTANT)
 
-**Current status:** Using Twilio Sandbox for testing. Production number `+15557589499` pending Meta approval.
+**Current status:** Production number `+15557589499` active. Inbound works. **Outbound REST API blocked** (Meta Business Account not fully approved for sending). Using TwiML inline as workaround.
 
-**Sandbox mode (current):**
-- Sandbox number: `+14155238886`
-- Replies MUST use **TwiML inline response** (not REST API)
-- REST API calls fail with error 63015 (session window)
-- Code auto-detects sandbox via `+14155238886` in `to_number`
-
-**Production mode (after Meta approval):**
-- Use the approved WhatsApp Business number
-- Replies use **Twilio REST API** (`client.messages.create()`)
-- TwiML inline won't work for production (needs REST API for async replies)
+**Current mode: TwiML inline (temporary):**
+- ALL replies use TwiML inline response (synchronous)
+- Works for both sandbox and production numbers
+- **15-second timeout**: if OpenClaw takes longer, reply is dropped
+- Conversation history reduced to 10 messages to speed up responses
+- Only fast models available (Sonnet 4.5, Haiku 4.5). Big models marked "Coming Soon"
 
 **How it works in code (`webhooks.py`):**
 ```python
-is_sandbox = "+14155238886" in to_number
-
-if is_sandbox:
-    # Return TwiML inline (sandbox only)
-    return Response(content=f"<Response><Message>{reply}</Message></Response>", ...)
-else:
-    # Send via REST API (production)
-    await send_twilio_message(from_number, reply, to_number)
-    return Response(content="<Response></Response>", ...)
+# Current: TwiML inline for all replies
+async def reply_message(msg: str) -> Response:
+    escaped = html.escape(msg)
+    return Response(content=f"<Response><Message>{escaped}</Message></Response>", ...)
 ```
 
-**When Meta approves production number:**
-1. Update `.env`: `TWILIO_WHATSAPP_NUMBER=whatsapp:+15557589499`
-2. Set Twilio webhook URL for production number (not sandbox)
-3. Code will auto-switch to REST API mode (no code changes needed)
+**When Meta fully approves outbound sending (REST API):**
+1. In `webhooks.py`, restore the REST API mode in `reply_message()`:
+   - Return empty TwiML immediately: `<Response></Response>`
+   - Send actual reply asynchronously via `send_twilio_message()` (no timeout)
+2. Remove `comingSoon: true` from big models in `frontend/src/lib/api.ts`
+3. Increase conversation history back to 20 messages in `webhooks.py`
+4. Template notifications (`send_ready_notification`) will also start working
+5. Test end-to-end: send message → verify reply arrives via REST API
 
-**Sandbox setup (for testing):**
-1. Join sandbox: send join code to `+14155238886` from your WhatsApp
-2. Set sandbox webhook URL to ngrok URL in Twilio Console → Messaging → Try WhatsApp
-3. Code auto-detects sandbox and uses TwiML response
-
-**Sandbox limitation: 15-second timeout**
-- Twilio webhooks timeout after ~15 seconds
-- Sandbox requires TwiML inline response (synchronous)
-- If Openclaw takes >15s to respond, Twilio closes connection and discards the reply
-- **This is a dev-only limitation** - production REST API is async (no timeout)
-- No workaround for sandbox. Accept some messages won't arrive if LLM is slow.
+**Twilio error reference:**
+- **63007**: "Could not find Channel with specified From address" → outbound not approved
+- **63015**: Session window expired → need template message or user must message first
+- **21656**: Invalid Content Variables → template not approved or wrong format
 
 ### WhatsApp 24-Hour Session Window (IMPORTANT)
 
@@ -1084,19 +1072,21 @@ async def send_ready_notification(user_id: str) -> None:
 4. Add Content SID to config and code
 
 ### Next Steps (in order)
-1. **Production Launch** (CURRENT):
-   - [x] Meta WhatsApp approval received
-   - [x] Waitlist reverted to signup flow
-   - [x] BYOK (Bring Your Own Key) implemented in dashboard
-   - [x] WhatsApp template message for "assistant ready" notification
-   - [ ] Configure Twilio webhook URL: `https://yourclaw.onrender.com/api/v1/webhooks/twilio/whatsapp`
-   - [ ] Configure Stripe webhook URL: `https://yourclaw.onrender.com/api/v1/webhooks/stripe`
-   - [ ] Enable Twilio signature validation (remove SKIP_TWILIO_SIGNATURE)
-   - [ ] Add `TWILIO_TEMPLATE_ASSISTANT_READY` to Render env vars
-2. **Rate Limits** (TODO):
+1. **Switch WhatsApp replies to REST API** (BLOCKED — waiting for Meta Business Account full approval):
+   - Currently using TwiML inline responses (synchronous, ~15s timeout)
+   - Once Meta approves outbound sending, switch to async REST API (no timeout)
+   - Code change: in `webhooks.py`, uncomment REST API mode in `reply_message()`
+   - Test: send a message and verify reply arrives via REST API (not TwiML)
+   - Remove the TwiML fallback once confirmed working
+   - Template messages (`send_ready_notification`) will also start working
+2. **Enable big models** (BLOCKED — TwiML 15s timeout):
+   - Opus 4.5, GPT-4o, Gemini 2.0 Flash marked "Coming Soon" in dashboard
+   - These models are too slow for TwiML inline (>15s responses)
+   - Once REST API is active (no timeout), remove `comingSoon` flag from models in `api.ts`
+3. **Rate Limits** (TODO):
    - [ ] Implement daily message rate limits (e.g., 100 msg/day per user)
    - [ ] Implement per-minute rate limits (e.g., 5 msg/min)
-3. **Post-launch: Google Integrations** (PAUSED - not production ready):
+4. **Post-launch: Google Integrations** (PAUSED - not production ready):
    - [x] Backend complete: OAuth flow, token storage, MCP config injection
    - [x] Frontend complete: Connected Services UI (currently hidden)
    - [ ] Test with real Google OAuth credentials
@@ -1104,9 +1094,18 @@ async def send_ready_notification(user_id: str) -> None:
    - [ ] Re-enable in dashboard when ready
 
 ### Completed
+- [x] **TwiML fallback + production fixes** (2026-02-09):
+  - Switched to TwiML inline responses (Meta outbound not approved yet)
+  - Reduced conversation history from 20 to 10 messages (faster responses within 15s TwiML timeout)
+  - Big models (Opus 4.5, GPT-4o, Gemini) marked "Coming Soon" (too slow for TwiML)
+  - Only Sonnet 4.5 and Haiku 4.5 selectable for now
+  - Template notification made best-effort (won't fail provisioning job)
+  - SSH key parsing: auto-detect Ed25519/RSA/ECDSA (was hardcoded RSA)
+  - Google OAuth `prompt: "select_account"` added to login (forces account picker)
+  - Dashboard shows WhatsApp number + "Open WhatsApp" deep link when assistant is READY
 - [x] **WhatsApp template message** (2026-02-09):
   - Template SID: `HX2da33755ce26e6cd5177e9d07bba71d6`
-  - Sent when assistant provisioning completes
+  - Sent when assistant provisioning completes (best-effort, won't block provisioning)
   - Bypasses 24-hour session window limitation
   - `send_twilio_template()` function in webhooks.py
   - Worker calls `send_ready_notification()` after health check passes
