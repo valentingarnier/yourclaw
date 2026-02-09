@@ -80,11 +80,7 @@ def build_openclaw_config(gateway_token: str, model: str = DEFAULT_MODEL) -> dic
                                 "name": "playwright",
                                 "transport": "stdio",
                                 "command": "npx",
-                                "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless"],
-                                "env": {
-                                    "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH": "/usr/bin/chromium",
-                                    "CHROME_PATH": "/usr/bin/chromium"
-                                }
+                                "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless", "--executable-path", "/usr/bin/chromium"]
                             }
                         ]
                     }
