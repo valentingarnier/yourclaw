@@ -1,9 +1,9 @@
 # YourClaw MVP
 
 ## Product
-WhatsApp-first AI assistant. User signs in, enters phone number, pays, gets a personal Openclaw instance on WhatsApp. No setup, no technical knowledge required.
+Multi-channel AI assistant (WhatsApp + Telegram). User signs in, chooses a channel (WhatsApp or Telegram), pays, gets a personal Openclaw instance. No setup, no technical knowledge required.
 
-Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts — while you sleep."
+Positioning: "Your always-on AI assistant on WhatsApp & Telegram. Watches, notifies, acts — while you sleep."
 
 ## Architecture Decisions
 - **Auth + DB**: Supabase (Google sign-in only, cloud Postgres, no local emulator)
@@ -11,6 +11,8 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 - **Frontend**: Next.js App Router + Tailwind (single app with marketing + authenticated routes)
 - **Containers**: Docker on shared Hetzner host server (NOT VMs). One container per user.
 - **WhatsApp**: Single Twilio number, route inbound by sender phone (`From` field). Uses Twilio API (NOT Openclaw's built-in Baileys integration).
+- **Telegram**: Single bot (`@Yourclawdev_bot`), route inbound by `telegram_chat_id` or `telegram_username`. Uses Telegram Bot API directly (no library).
+- **Channel selection**: User picks WhatsApp or Telegram during assistant creation. Stored in `user_phones.channel`. Can be changed from dashboard.
 - **Openclaw API**: `POST /v1/chat/completions` on port 18789 per container (OpenAI-compatible, enabled via gateway config)
 - **Container image**: Custom `yourclaw-openclaw:latest` (lightweight gateway) + `openclaw-sandbox-browser:bookworm-slim` (browser tool)
 - **Openclaw install**: Pre-installed in container image, starts with `openclaw gateway`
@@ -18,26 +20,28 @@ Positioning: "Your always-on AI assistant on WhatsApp. Watches, notifies, acts �
 - **LLM providers**: Anthropic, OpenAI, Google. Shared API keys for MVP, BYOK supported (users can add their own keys from dashboard).
 - **Openclaw tools**: ALL tools enabled. No restrictions. Full power of Openclaw.
 - **Payments**: Stripe Checkout for subscription. Required before assistant creation.
-- **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true` for local dev without real credentials.
+- **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true`, `MOCK_TELEGRAM=true` for local dev without real credentials.
 
 ## User Journey (End to End)
 ```
 1. User lands on yourclaw.com → sees landing page with demo + CTA
 2. User clicks "Get Started" → goes to /login
 3. User signs in with Google (Supabase Auth)
-4. User enters WhatsApp number (E.164 format) on /onboarding
-5. User clicks "Create my assistant" on /dashboard
-6. No active subscription? → Redirect to Stripe Checkout ($20/mo)
-7. Stripe payment succeeds → webhook fires → subscription created in DB
-8. User returns to dashboard → provisioning starts automatically
-9. Backend creates provisioning_job → worker picks up
-10. Worker SSHs to host server → docker run openclaw container
-11. Writes config (API key, gateway token) → starts openclaw gateway
-12. Health check passes → assistant status = READY
-13. Dashboard shows "Your assistant is ready!" with instructions to message the Twilio number
-14. User messages the Twilio WhatsApp number first (initiates 24-hour session window)
-15. Twilio webhook → backend routes to user's container → gets reply → sends back
-16. Usage tracked per day. Rate limits enforced. [TODO: implement rate limits]
+4. User is redirected to /onboarding (if no channel set)
+5. User selects channel (WhatsApp or Telegram) and enters contact info on /dashboard
+6. User clicks "Create my assistant" on /dashboard (channel picker is inline)
+7. No active subscription? → Redirect to Stripe Checkout ($20/mo)
+8. Stripe payment succeeds → webhook fires → subscription created in DB
+9. User returns to dashboard → provisioning starts automatically
+10. Backend creates provisioning_job → worker picks up
+11. Worker SSHs to host server → docker run openclaw container
+12. Writes config (API key, gateway token) → starts openclaw gateway
+13. Health check passes → assistant status = READY
+14. Dashboard shows "Your assistant is ready!" with channel-specific instructions
+15. WhatsApp: User messages Twilio number (initiates 24-hour session window)
+    Telegram: User messages @Yourclawdev_bot (bot links chat_id on first message)
+16. Webhook → backend routes to user's container → gets reply → sends back
+17. Usage tracked per day. Rate limits enforced. [TODO: implement rate limits]
 ```
 
 ## Request Flows
@@ -59,6 +63,29 @@ User WhatsApp → Twilio → POST /api/v1/webhooks/twilio/whatsapp (FastAPI)
   → increment usage_daily counters
   → return empty TwiML: <Response></Response>
 ```
+
+### Telegram Message
+```
+User Telegram → Bot API → POST /api/v1/webhooks/telegram (FastAPI)
+  → validate X-Telegram-Bot-Api-Secret-Token header
+  → parse JSON: message.chat.id, message.text, message.from.username, message_id
+  → lookup user by telegram_chat_id (fast path for returning users)
+  → if not found: lookup by telegram_username (first message), link chat_id
+  → check assistant status == READY
+  → check rate limits + daily caps
+  → POST /v1/chat/completions on user container (host_ip:user_port)
+    → Authorization: Bearer <gateway_token>
+    → body: { "model": "openclaw:main", "messages": [last 20 messages + current] }
+  → return 200 immediately (no timeout!)
+  → send reply asynchronously via Bot API sendMessage
+    → splits at 4096-char Telegram limit
+    → Markdown parse mode, falls back to plain text
+  → record in messages table (channel: "TELEGRAM", telegram_message_id)
+  → increment usage_daily counters
+```
+
+**Key advantage over WhatsApp**: No timeout! Telegram replies are sent asynchronously via Bot API.
+This allows slower models (Opus, GPT-4o), browser automation (30-60s), and longer context.
 
 ### Provisioning
 ```
@@ -171,13 +198,17 @@ docker-compose.yml         — Local dev: API only (connects to Supabase cloud)
 Users managed by Supabase Auth (`auth.users`). App tables in `public` schema:
 
 ```sql
--- User's WhatsApp number
+-- User's messaging channel + contact info (migration 004 adds Telegram columns)
 user_phones (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  phone_e164 VARCHAR(20) NOT NULL,  -- e.g. +15551234567
+  channel VARCHAR(20) NOT NULL DEFAULT 'WHATSAPP',  -- WHATSAPP or TELEGRAM
+  phone_e164 VARCHAR(20),           -- e.g. +15551234567 (required for WHATSAPP, NULL for TELEGRAM)
+  telegram_username VARCHAR(100),   -- e.g. "johndoe" (required for TELEGRAM, NULL for WHATSAPP)
+  telegram_chat_id BIGINT,          -- set on first Telegram message (used for fast lookup)
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(user_id)
+  UNIQUE(user_id),
+  CONSTRAINT chk_channel CHECK (channel IN ('WHATSAPP', 'TELEGRAM'))
 )
 
 -- User's Openclaw assistant (one per user)
@@ -210,7 +241,9 @@ messages (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   direction VARCHAR(10) NOT NULL,  -- INBOUND, OUTBOUND
   body TEXT NOT NULL,
+  channel VARCHAR(20) NOT NULL DEFAULT 'WHATSAPP',  -- WHATSAPP or TELEGRAM
   twilio_sid VARCHAR(50),
+  telegram_message_id BIGINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )
 
@@ -311,9 +344,13 @@ GET    /health                        — service health + DB connectivity
 
 # User
 GET    /users/me                      — current user profile + phone + subscription status
-POST   /users/me/phone                — set WhatsApp number { "phone": "+15551234567" }
+POST   /users/me/phone                — set WhatsApp number (legacy, sets channel=WHATSAPP)
   → validates E.164 format
   → upserts user_phones record
+POST   /users/me/channel              — set messaging channel { "channel": "WHATSAPP"|"TELEGRAM", "phone"?: "...", "telegram_username"?: "..." }
+  → validates channel-specific fields (phone for WhatsApp, username for Telegram)
+  → normalizes Telegram username (strips @, lowercase)
+  → resets telegram_chat_id on channel change (re-linked on first message)
 
 # Assistant
 POST   /assistants                    — create/recreate assistant (idempotent per user)
@@ -347,6 +384,11 @@ GET    /usage                         — usage stats
 POST   /webhooks/twilio/whatsapp      — Twilio inbound WhatsApp
   → validates X-Twilio-Signature
   → form-encoded: From, Body, MessageSid, ProfileName, NumMedia, MediaUrl0
+POST   /webhooks/telegram             — Telegram Bot API inbound
+  → validates X-Telegram-Bot-Api-Secret-Token header
+  → JSON: message.chat.id, message.text, message.from.username
+  → lookup by telegram_chat_id (fast) or telegram_username (first msg, links chat_id)
+  → async reply via Bot API sendMessage (no timeout)
 POST   /webhooks/stripe               — Stripe events
   → validates Stripe-Signature header
   → handles: checkout.session.completed, invoice.payment_succeeded,
@@ -758,6 +800,12 @@ TWILIO_ACCOUNT_SID=                 # ACxxxxxxxx
 TWILIO_AUTH_TOKEN=                  # secret auth token
 TWILIO_WHATSAPP_NUMBER=             # whatsapp:+14155238886
 
+# Telegram
+TELEGRAM_BOT_TOKEN=                 # from @BotFather
+TELEGRAM_BOT_USERNAME=Yourclawdev_bot  # bot username (without @)
+TELEGRAM_WEBHOOK_SECRET=            # secret for webhook validation
+MOCK_TELEGRAM=false                 # true: log instead of sending Telegram messages
+
 # Stripe
 STRIPE_SECRET_KEY=                  # sk_live_xxx or sk_test_xxx
 STRIPE_PUBLISHABLE_KEY=            # pk_live_xxx or pk_test_xxx
@@ -1104,6 +1152,16 @@ async def send_ready_notification(user_id: str) -> None:
    - [ ] Re-enable in dashboard when ready
 
 ### Completed
+- [x] **Telegram support + multi-channel architecture** (2026-02-09):
+  - Database migration `004_telegram_channel.sql`: added `channel`, `telegram_username`, `telegram_chat_id` to `user_phones`; made `phone_e164` nullable
+  - `POST /api/v1/users/me/channel` endpoint: set WhatsApp or Telegram with validation
+  - Telegram webhook handler: `POST /api/v1/webhooks/telegram` with dual-path user lookup (chat_id fast, username slow+link)
+  - `send_telegram_message()`: async reply via Bot API, 4096-char chunking, Markdown with plain text fallback
+  - Worker `send_ready_notification()`: channel-aware (WhatsApp template vs Telegram direct message)
+  - Frontend: channel picker integrated into assistant creation flow (WhatsApp/Telegram toggle + input)
+  - Dashboard: channel-specific cards when assistant READY (Telegram bot link vs WhatsApp number)
+  - Onboarding page: channel selection with validation
+  - Key advantage: Telegram has no timeout (async replies), enabling slower models and browser automation
 - [x] **Browser tool fix — native browser disabled, Playwright MCP working** (2026-02-09):
   - **Problem**: OpenClaw has two browser systems: native (Chrome extension relay) and Playwright MCP. The native tool was in the LLM's tool list, so it tried to use it first — but it can't work in a headless Docker container (no Chrome extension). Even after disabling it with `browser.enabled: false`, the tool definition was still sent to the LLM.
   - **Fix 1**: `tools.deny: ["browser", "playwright_browser_install"]` — removes native browser tool AND the install tool from the LLM's tool list entirely. The LLM only sees `playwright_browser_*` tools.
