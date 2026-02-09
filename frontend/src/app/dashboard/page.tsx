@@ -459,36 +459,52 @@ function AssistantSection({
         <div className="mb-6">
           {assistant?.status === "READY" && (
             <div className="space-y-4">
-              <Text>
-                Your assistant is ready! Send a message to get started.
-                <br />
-                <span className="text-zinc-500 dark:text-zinc-400 text-sm">
-                  Model: {currentModelInfo?.name || selectedModel}
-                </span>
-              </Text>
-              <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
-                <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
-                  Message your assistant on WhatsApp
-                </p>
-                <p className="text-sm text-green-800 dark:text-green-200 mb-3">
-                  Open WhatsApp and send a message to:
-                </p>
-                <div className="flex items-center gap-3">
-                  <code className="text-lg font-semibold text-green-900 dark:text-green-100 bg-green-100 dark:bg-green-800/50 px-3 py-1.5 rounded-lg">
-                    +1 (555) 758-9499
-                  </code>
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                  <CheckIcon className="size-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-950 dark:text-white">Your assistant is live</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {currentModelInfo?.name || selectedModel}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-zinc-950/10 dark:border-white/10 overflow-hidden">
+                <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
+                  <div className="size-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg className="size-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.61.61l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.593-.838-6.315-2.234l-.44-.366-3.09 1.036 1.036-3.09-.366-.44A9.953 9.953 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-white">WhatsApp</span>
+                </div>
+                <div className="px-4 py-4 space-y-3">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Send a message to start chatting with your assistant:
+                  </p>
+                  <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                    <span className="text-base font-mono font-semibold text-zinc-950 dark:text-white tracking-wide">
+                      +1 (555) 758-9499
+                    </span>
+                  </div>
                   <a
-                    href="https://wa.me/15557589499?text=Hi"
+                    href={`https://wa.me/15557589499?text=${encodeURIComponent("Hello, are you there?")}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] hover:bg-[#20BD5A] px-4 py-2.5 text-sm font-medium text-white transition-colors"
                   >
+                    <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                    </svg>
                     Open WhatsApp
                   </a>
+                  <p className="text-xs text-center text-zinc-400 dark:text-zinc-500">
+                    Save this number as &quot;YourClaw&quot; for easy access
+                  </p>
                 </div>
-                <p className="text-xs text-green-700 dark:text-green-300 mt-2">
-                  Save this number as &quot;YourClaw&quot; in your contacts for easy access.
-                </p>
               </div>
             </div>
           )}
