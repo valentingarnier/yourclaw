@@ -134,22 +134,37 @@ async def get_allocated_ports() -> list[int]:
 
 
 async def send_ready_notification(user_id: str) -> None:
-    """Send WhatsApp template notification that assistant is ready.
+    """Send notification that assistant is ready, using the user's chosen channel.
 
-    Uses pre-approved template message to bypass 24-hour session window.
-
-    Args:
-        user_id: User's UUID
+    WhatsApp: pre-approved template message (bypasses 24-hour session window).
+    Telegram: direct message via Bot API (no restrictions).
     """
-    from app.routers.webhooks import send_twilio_template
-
     phone_row = await db.select("user_phones", filters={"user_id": user_id}, single=True)
-    if phone_row:
+    if not phone_row:
+        return
+
+    channel = phone_row.get("channel", "WHATSAPP")
+
+    if channel == "WHATSAPP" and phone_row.get("phone_e164"):
+        from app.routers.webhooks import send_twilio_template
         await send_twilio_template(
             phone_row["phone_e164"],
             settings.twilio_template_assistant_ready,
         )
-        logger.info(f"Sent assistant ready notification to {phone_row['phone_e164']}")
+        logger.info(f"Sent WhatsApp ready notification to {phone_row['phone_e164']}")
+
+    elif channel == "TELEGRAM" and phone_row.get("telegram_chat_id"):
+        from app.routers.webhooks import send_telegram_message
+        await send_telegram_message(
+            phone_row["telegram_chat_id"],
+            "Your YourClaw assistant is ready! Send me a message to start chatting.",
+        )
+        logger.info(f"Sent Telegram ready notification to chat_id={phone_row['telegram_chat_id']}")
+
+    elif channel == "TELEGRAM":
+        # No chat_id yet — user hasn't messaged the bot.
+        # They'll discover it works when they message.
+        logger.info(f"Telegram user {user_id} not yet connected (no chat_id). Skipping notification.")
 
 
 async def process_job(job: dict) -> None:

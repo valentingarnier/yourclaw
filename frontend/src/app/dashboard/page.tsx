@@ -355,6 +355,45 @@ function AssistantSection({
 }) {
   const canChangeModel = !assistant || assistant.status === "NONE" || assistant.status === "ERROR";
   const currentModelInfo = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
+  const [editingChannel, setEditingChannel] = useState(false);
+  const [newChannel, setNewChannel] = useState<"WHATSAPP" | "TELEGRAM">(
+    (user?.channel as "WHATSAPP" | "TELEGRAM") || "WHATSAPP"
+  );
+  const [newPhone, setNewPhone] = useState(user?.phone || "");
+  const [newTelegramUsername, setNewTelegramUsername] = useState(user?.telegram_username || "");
+  const [channelSaving, setChannelSaving] = useState(false);
+  const [channelError, setChannelError] = useState<string | null>(null);
+
+  async function handleSaveChannel() {
+    setChannelError(null);
+    if (newChannel === "WHATSAPP") {
+      const phoneRegex = /^\+[1-9]\d{1,14}$/;
+      if (!phoneRegex.test(newPhone)) {
+        setChannelError("Enter a valid phone (e.g., +15551234567)");
+        return;
+      }
+    } else {
+      const usernameRegex = /^@?[a-zA-Z0-9_]{5,32}$/;
+      if (!usernameRegex.test(newTelegramUsername)) {
+        setChannelError("Enter a valid Telegram username (5-32 chars)");
+        return;
+      }
+    }
+    try {
+      setChannelSaving(true);
+      await api.setChannel(
+        newChannel,
+        newChannel === "WHATSAPP" ? newPhone : undefined,
+        newChannel === "TELEGRAM" ? newTelegramUsername.replace(/^@/, "") : undefined,
+      );
+      setEditingChannel(false);
+      onRefresh();
+    } catch (err) {
+      setChannelError(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setChannelSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -586,6 +625,109 @@ function AssistantSection({
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Channel Settings */}
+      <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <Subheading>Channel</Subheading>
+          {!editingChannel && (
+            <Button plain onClick={() => {
+              setNewChannel((user?.channel as "WHATSAPP" | "TELEGRAM") || "WHATSAPP");
+              setNewPhone(user?.phone || "");
+              setNewTelegramUsername(user?.telegram_username || "");
+              setChannelError(null);
+              setEditingChannel(true);
+            }}>
+              Edit
+            </Button>
+          )}
+        </div>
+
+        {editingChannel ? (
+          <div className="space-y-4">
+            {/* Channel toggle */}
+            <div className="flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">
+              <button
+                type="button"
+                onClick={() => setNewChannel("WHATSAPP")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  newChannel === "WHATSAPP"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewChannel("TELEGRAM")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  newChannel === "TELEGRAM"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                Telegram
+              </button>
+            </div>
+
+            {/* Input */}
+            {newChannel === "WHATSAPP" ? (
+              <input
+                type="tel"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="+15551234567"
+                className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+              />
+            ) : (
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">@</span>
+                <input
+                  type="text"
+                  value={newTelegramUsername}
+                  onChange={(e) => setNewTelegramUsername(e.target.value.replace(/^@/, ""))}
+                  placeholder="username"
+                  className="w-full pl-7 pr-3 py-2 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                />
+              </div>
+            )}
+
+            {channelError && (
+              <p className="text-sm text-red-600 dark:text-red-400">{channelError}</p>
+            )}
+
+            <div className="flex gap-2">
+              <Button color="dark" onClick={handleSaveChannel} disabled={channelSaving}>
+                {channelSaving ? "Saving..." : "Save"}
+              </Button>
+              <Button plain onClick={() => setEditingChannel(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className={`flex size-10 items-center justify-center rounded-full ${user?.channel === "TELEGRAM" ? "bg-[#0088CC]/10" : "bg-[#25D366]/10"}`}>
+              {user?.channel === "TELEGRAM" ? (
+                <svg className="size-5 text-[#0088CC]" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+              ) : (
+                <svg className="size-5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-zinc-950 dark:text-white">
+                {user?.channel === "TELEGRAM" ? "Telegram" : "WhatsApp"}
+              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                {user?.channel === "TELEGRAM" ? `@${user?.telegram_username}` : user?.phone}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

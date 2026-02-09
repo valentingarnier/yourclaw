@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # --- User ---
@@ -10,12 +10,29 @@ class UserProfile(BaseModel):
     id: uuid.UUID
     email: str
     phone: str | None = None
+    channel: str | None = None  # WHATSAPP or TELEGRAM
+    telegram_username: str | None = None
+    telegram_connected: bool = False  # True if telegram_chat_id is set
     subscription_status: str | None = None  # ACTIVE, PAST_DUE, CANCELED, or None
     assistant_status: str | None = None  # NONE, PROVISIONING, READY, ERROR
 
 
 class PhoneInput(BaseModel):
     phone: str = Field(..., pattern=r"^\+[1-9]\d{1,14}$", description="E.164 format phone number")
+
+
+class ChannelInput(BaseModel):
+    channel: str = Field("WHATSAPP", pattern=r"^(WHATSAPP|TELEGRAM)$")
+    phone: str | None = Field(None, pattern=r"^\+[1-9]\d{1,14}$", description="E.164 format, required for WHATSAPP")
+    telegram_username: str | None = Field(None, description="Telegram username, required for TELEGRAM")
+
+    @model_validator(mode="after")
+    def validate_channel_fields(self):
+        if self.channel == "WHATSAPP" and not self.phone:
+            raise ValueError("Phone number required for WhatsApp channel")
+        if self.channel == "TELEGRAM" and not self.telegram_username:
+            raise ValueError("Telegram username required for Telegram channel")
+        return self
 
 
 # --- Assistant ---

@@ -305,6 +305,184 @@ async def send_twilio_template(to_number: str, content_sid: str, from_number: st
     logger.info(f"Twilio template sent: SID={message.sid}, status={message.status}")
 
 
+async def send_telegram_message(chat_id: int, text: str) -> None:
+    """Send a message via Telegram Bot API.
+
+    Splits long messages at the 4096-char Telegram limit.
+    Falls back to plain text if Markdown parsing fails.
+    """
+    if settings.mock_telegram:
+        logger.info(f"[Mock Telegram] To chat_id={chat_id}: {text[:100]}...")
+        return
+
+    chunks = [text[i:i + 4096] for i in range(0, len(text), 4096)]
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for chunk in chunks:
+            resp = await client.post(
+                f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+                json={"chat_id": chat_id, "text": chunk, "parse_mode": "Markdown"},
+            )
+            if resp.status_code != 200:
+                # Retry without Markdown (in case formatting breaks)
+                await client.post(
+                    f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+                    json={"chat_id": chat_id, "text": chunk},
+                )
+
+
+@router.post("/telegram")
+async def telegram_webhook(request: Request) -> dict:
+    """Handle inbound Telegram messages from Bot API webhook.
+
+    Returns 200 immediately. Sends reply asynchronously via Bot API (no timeout!).
+    """
+    # Validate secret token
+    if settings.telegram_webhook_secret:
+        header_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if header_token != settings.telegram_webhook_secret:
+            raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret")
+
+    body = await request.json()
+
+    # Only handle text messages
+    message = body.get("message")
+    if not message or "text" not in message:
+        return {"ok": True}
+
+    chat_id = message["chat"]["id"]
+    text = message["text"]
+    from_user = message.get("from", {})
+    username = (from_user.get("username") or "").lower()
+    message_id = message["message_id"]
+
+    logger.info(f"Inbound Telegram from @{username} (chat_id={chat_id}): {text[:50]}...")
+
+    # Handle /start command
+    if text.strip() == "/start":
+        text = "Hello!"
+
+    # Lookup user by telegram_chat_id (fast path for connected users)
+    phone_row = await db.select(
+        "user_phones",
+        filters={"telegram_chat_id": chat_id, "channel": "TELEGRAM"},
+        single=True,
+    )
+
+    if not phone_row and username:
+        # Slow path: first message — try matching by username
+        phone_row = await db.select(
+            "user_phones",
+            filters={"telegram_username": username, "channel": "TELEGRAM"},
+            single=True,
+        )
+        if phone_row and not phone_row.get("telegram_chat_id"):
+            # Link chat_id for future lookups
+            await db.update(
+                "user_phones",
+                {"telegram_chat_id": chat_id},
+                {"user_id": phone_row["user_id"]},
+            )
+            logger.info(f"Linked Telegram @{username} -> chat_id {chat_id} for user {phone_row['user_id']}")
+
+    if not phone_row:
+        await send_telegram_message(chat_id, "Hi! I don't recognize your account. Please sign up at yourclaw.dev and enter your Telegram username.")
+        return {"ok": True}
+
+    user_id = phone_row["user_id"]
+
+    # Check assistant is ready
+    assistant = await db.select("assistants", filters={"user_id": user_id}, single=True)
+    if not assistant or assistant["status"] != "READY":
+        await send_telegram_message(chat_id, "Your assistant is not ready yet. Please wait for setup to complete.")
+        return {"ok": True}
+
+    # Check rate limits
+    today = date.today().isoformat()
+    usage = await db.select("usage_daily", filters={"user_id": user_id, "date": today}, single=True)
+    if usage and usage["inbound_count"] >= settings.rate_limit_msg_per_day:
+        await send_telegram_message(chat_id, "Daily message limit reached. Try again tomorrow.")
+        return {"ok": True}
+
+    # Check credits (if using shared key)
+    api_key = await db.select("api_keys", filters={"user_id": user_id, "provider": "ANTHROPIC"}, single=True)
+    if not api_key:
+        credits = await db.select("user_credits", filters={"user_id": user_id}, single=True)
+        if credits and credits["used_cents"] >= credits["total_cents"]:
+            await send_telegram_message(chat_id, "API credits exhausted. Add your own API key or upgrade.")
+            return {"ok": True}
+
+    # Record inbound message
+    await db.insert("messages", {
+        "user_id": user_id,
+        "direction": "INBOUND",
+        "body": text,
+        "channel": "TELEGRAM",
+        "telegram_message_id": message_id,
+    })
+
+    # Update usage
+    if usage:
+        await db.update(
+            "usage_daily",
+            {"inbound_count": usage["inbound_count"] + 1},
+            {"user_id": user_id, "date": today},
+        )
+    else:
+        await db.insert("usage_daily", {
+            "user_id": user_id,
+            "date": today,
+            "inbound_count": 1,
+            "outbound_count": 0,
+        })
+
+    # Call Openclaw container (async — no timeout limitation on Telegram!)
+    host_ip = settings.host_server_ip
+    port = assistant["port"]
+    gateway_token = decrypt(assistant["gateway_token_encrypted"])
+
+    # Telegram can use 20 messages of history (no TwiML timeout constraint)
+    conversation = await get_conversation_history(user_id, limit=20)
+    logger.info(f"Telegram conversation history: {len(conversation)} messages")
+
+    try:
+        reply = await call_openclaw(host_ip, port, gateway_token, conversation)
+    except Exception as e:
+        logger.error(f"Openclaw error for Telegram user {user_id}: {e}")
+        reply = "Sorry, I encountered an error. Please try again."
+
+    # Record outbound message
+    await db.insert("messages", {
+        "user_id": user_id,
+        "direction": "OUTBOUND",
+        "body": reply,
+        "channel": "TELEGRAM",
+    })
+
+    # Update outbound usage
+    usage = await db.select("usage_daily", filters={"user_id": user_id, "date": today}, single=True)
+    await db.update(
+        "usage_daily",
+        {"outbound_count": usage["outbound_count"] + 1},
+        {"user_id": user_id, "date": today},
+    )
+
+    # Deduct credits
+    if not api_key:
+        credits = await db.select("user_credits", filters={"user_id": user_id}, single=True)
+        if credits:
+            await db.update(
+                "user_credits",
+                {"used_cents": credits["used_cents"] + 1, "updated_at": datetime.utcnow().isoformat()},
+                {"user_id": user_id},
+            )
+
+    # Send reply via Telegram Bot API (async, no timeout!)
+    await send_telegram_message(chat_id, reply)
+
+    return {"ok": True}
+
+
 @router.post("/stripe")
 async def stripe_webhook(request: Request) -> dict:
     """Handle Stripe webhook events.

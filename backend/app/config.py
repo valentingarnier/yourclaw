@@ -49,10 +49,16 @@ class Settings(BaseSettings):
     worker_poll_interval: int = 5
     worker_max_attempts: int = 3
 
+    # Telegram
+    telegram_bot_token: str = ""  # From @BotFather
+    telegram_bot_username: str = "Yourclawdev_bot"  # Bot username (without @)
+    telegram_webhook_secret: str = ""  # Secret for webhook validation
+
     # Mock Mode
     mock_twilio: bool = False
     mock_containers: bool = False
     mock_stripe: bool = False
+    mock_telegram: bool = False
     skip_twilio_signature: bool = False  # Skip signature validation for dev/ngrok
 
     # Dev Mode
