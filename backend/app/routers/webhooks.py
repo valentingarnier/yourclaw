@@ -184,7 +184,7 @@ async def twilio_whatsapp(request: Request) -> Response:
             )
 
     # Send reply (TwiML for sandbox, REST API for production)
-    logger.info(f"Sending reply via {'TwiML (sandbox)' if is_sandbox else 'REST API'}")
+    logger.info("Sending reply via TwiML inline")
     return await reply_message(reply)
 
 
