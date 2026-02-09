@@ -821,6 +821,9 @@ ANTHROPIC_API_KEY=                  # shared Anthropic key for all users
 OPENAI_API_KEY=                     # shared OpenAI key for GPT models
 GOOGLE_API_KEY=                     # shared Google key for Gemini models
 
+# Web Search
+BRAVE_API_KEY=                      # Brave Search API key (for OpenClaw web_search tool)
+
 # Google OAuth (for integrations)
 GOOGLE_CLIENT_ID=                   # xxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=               # GOCSPX-xxx

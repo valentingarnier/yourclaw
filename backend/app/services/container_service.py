@@ -324,6 +324,8 @@ class ContainerService:
                 env_vars += f" -e OPENAI_API_KEY={openai_api_key}"
             if google_api_key:
                 env_vars += f" -e GOOGLE_API_KEY={google_api_key}"
+            if settings.brave_api_key:
+                env_vars += f" -e BRAVE_API_KEY={settings.brave_api_key}"
 
             docker_cmd = f"""docker run -d \
                 --name {container_name} \

@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     google_api_key: str = ""  # For Gemini
 
+    # Web Search (Brave Search API)
+    brave_api_key: str = ""  # For OpenClaw web search tool
+
     # Google OAuth (for integrations: Calendar, Gmail, Drive)
     google_client_id: str = ""
     google_client_secret: str = ""
