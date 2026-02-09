@@ -9,7 +9,7 @@ import {
   ChevronDownIcon,
   CheckIcon,
   ArrowRightIcon,
-  PhoneIcon,
+  EnvelopeIcon,
   BellIcon,
   LanguageIcon,
   InboxIcon,
@@ -35,7 +35,6 @@ import {
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { MouseGradient, SpotlightCard, TiltCard } from "@/components/marketing/mouse-gradient";
-import { createClient } from "@/lib/supabase/client";
 
 export default function HomePage() {
   return (
@@ -57,45 +56,40 @@ export default function HomePage() {
 function HeroSection() {
   const [selectedModel, setSelectedModel] = useState<"claude" | "openai" | "gemini">("claude");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [phoneError, setPhoneError] = useState("");
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const models = [
     {
       id: "claude" as const,
-      name: "Claude",
+      name: "Claude Opus 4.5",
       provider: "Anthropic",
-      available: true,
       color: "from-white to-zinc-100",
       icon: <img src="/claude-logo.png" alt="Claude" className="w-5 h-5 object-contain" />,
     },
     {
       id: "openai" as const,
-      name: "GPT-4",
+      name: "GPT 5.2",
       provider: "OpenAI",
-      available: false,
       color: "from-[#10A37F] to-[#0D8A6A]",
       icon: <img src="/openai-logo.png" alt="OpenAI" className="w-5 h-5 object-contain" />,
     },
     {
       id: "gemini" as const,
-      name: "Gemini",
+      name: "Gemini 3.5",
       provider: "Google",
-      available: false,
       color: "from-[#4285F4] to-[#34A853]",
       icon: <img src="/gemini-logo.png" alt="Gemini" className="w-5 h-5 object-contain" />,
     },
   ];
 
   const formatPhoneNumber = (value: string) => {
-    // Remove all non-digit characters except +
     const cleaned = value.replace(/[^\d+]/g, "");
-
-    // If it starts with a digit (no +), assume US and add +1
     if (cleaned && !cleaned.startsWith("+")) {
       const digits = cleaned.replace(/\D/g, "");
       if (digits.length <= 10) {
-        // Format as (XXX) XXX-XXXX
         const match = digits.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
         if (match) {
           let formatted = "";
@@ -108,47 +102,59 @@ function HeroSection() {
         }
       }
     }
-
     return cleaned;
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneNumber(e.target.value);
     setPhoneNumber(formatted);
-    setPhoneError("");
+    setErrorMessage("");
+    setStatus("idle");
   };
 
-  const validatePhone = () => {
-    const digits = phoneNumber.replace(/\D/g, "");
-    if (digits.length < 10) {
-      setPhoneError("Please enter a valid phone number");
-      return false;
+  const handleJoinWaitlist = async () => {
+    // Validate email
+    if (!email || !email.includes("@")) {
+      setErrorMessage("Please enter a valid email address");
+      setStatus("error");
+      return;
     }
-    return true;
-  };
 
-  const handleGoogleSignIn = async () => {
-    if (!validatePhone()) return;
+    // Validate phone (optional but if entered, must be valid)
+    const digits = phoneNumber.replace(/\D/g, "");
+    if (phoneNumber && digits.length < 10) {
+      setErrorMessage("Please enter a valid phone number");
+      setStatus("error");
+      return;
+    }
 
     setIsLoading(true);
+    setStatus("idle");
+    setErrorMessage("");
 
-    // Store phone number in localStorage for after OAuth redirect
-    const digits = phoneNumber.replace(/\D/g, "");
-    const e164 = digits.startsWith("1") ? `+${digits}` : `+1${digits}`;
-    localStorage.setItem("pendingPhone", e164);
-    localStorage.setItem("pendingModel", selectedModel);
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          phone: phoneNumber ? (digits.startsWith("1") ? `+${digits}` : `+1${digits}`) : undefined,
+          model: selectedModel,
+        }),
+      });
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/onboarding?from=landing`,
-      },
-    });
+      const data = await response.json();
 
-    if (error) {
+      if (!response.ok) {
+        throw new Error(data.error || "Something went wrong");
+      }
+
+      setStatus("success");
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "Something went wrong");
+    } finally {
       setIsLoading(false);
-      console.error("OAuth error:", error);
     }
   };
 
@@ -173,7 +179,7 @@ function HeroSection() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <span className="text-sm text-zinc-400">
-                Setup in <span className="text-white font-medium">under 2 minutes</span>
+                Powered by <span className="text-white font-medium">OpenClaw</span>
               </span>
             </div>
 
@@ -215,124 +221,134 @@ function HeroSection() {
                 {/* Gradient glow at top */}
                 <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
 
-                {/* Step 1: Choose Model */}
-                <div className="mb-6">
-                  <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-3">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">1</span>
-                    Choose your AI model
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {models.map((model) => (
-                      <button
-                        key={model.id}
-                        onClick={() => model.available && setSelectedModel(model.id)}
-                        disabled={!model.available}
-                        className={clsx(
-                          "relative p-3 rounded-xl border transition-all duration-200 shadow-lg shadow-black/20",
-                          model.available
-                            ? selectedModel === model.id
-                              ? "border-emerald-500 bg-emerald-500/10 shadow-emerald-500/20"
-                              : "border-white/10 bg-white/5 hover:border-white/20 hover:shadow-xl hover:shadow-black/30"
-                            : "border-white/5 bg-white/[0.02] cursor-not-allowed opacity-50 shadow-none"
-                        )}
-                      >
-                        {!model.available && (
-                          <span className="absolute -top-2 -right-2 px-1.5 py-0.5 text-[10px] font-medium bg-zinc-800 text-zinc-400 rounded-full border border-zinc-700">
-                            Soon
-                          </span>
-                        )}
-                        <div className={clsx(
-                          "w-8 h-8 rounded-lg mx-auto mb-2 flex items-center justify-center",
-                          model.available ? `bg-gradient-to-br ${model.color}` : "bg-zinc-800"
-                        )}>
-                          <span className="text-white">{model.icon}</span>
+                {/* Launch date badge */}
+                <div className="flex justify-center mb-6">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-sm text-emerald-400 font-medium">
+                      Launching February 12
+                    </span>
+                  </div>
+                </div>
+
+                {status === "success" ? (
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 mb-4">
+                      <CheckIcon className="w-8 h-8 text-emerald-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">You're on the list!</h3>
+                    <p className="text-zinc-400">We'll email you when YourClaw launches on February 12.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Step 1: Choose Model */}
+                    <div className="mb-6">
+                      <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-3">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">1</span>
+                        Choose your AI model
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {models.map((model) => (
+                          <button
+                            key={model.id}
+                            onClick={() => setSelectedModel(model.id)}
+                            className={clsx(
+                              "relative p-3 rounded-xl border transition-all duration-200 shadow-lg bg-white",
+                              selectedModel === model.id
+                                ? "border-emerald-500 shadow-emerald-500/20"
+                                : "border-zinc-200 shadow-black/10 hover:border-zinc-300 hover:shadow-xl hover:shadow-black/20"
+                            )}
+                          >
+                            <div className="w-8 h-8 rounded-lg mx-auto mb-2 flex items-center justify-center">
+                              {model.icon}
+                            </div>
+                            <p className="text-xs font-medium text-zinc-900">{model.name}</p>
+                            <p className="text-[10px] text-zinc-500">{model.provider}</p>
+                            {selectedModel === model.id && (
+                              <div className="absolute top-2 right-2">
+                                <CheckIcon className="w-4 h-4 text-emerald-500" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Step 2: Phone Number */}
+                    <div className="mb-6">
+                      <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-3">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">2</span>
+                        Your WhatsApp number
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                          </svg>
                         </div>
-                        <p className="text-xs font-medium text-white">{model.name}</p>
-                        <p className="text-[10px] text-zinc-500">{model.provider}</p>
-                        {selectedModel === model.id && model.available && (
-                          <div className="absolute top-2 right-2">
-                            <CheckIcon className="w-4 h-4 text-emerald-400" />
-                          </div>
+                        <input
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={handlePhoneChange}
+                          placeholder="+1 555 123 4567"
+                          className="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 transition-all"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-zinc-500">
+                        We'll send your assistant to this number
+                      </p>
+                    </div>
+
+                    {/* Step 3: Email & Join */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-3">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">3</span>
+                        Join the waitlist
+                      </label>
+                      <div className="relative mb-3">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <EnvelopeIcon className="w-5 h-5 text-zinc-500" />
+                        </div>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            setErrorMessage("");
+                            setStatus("idle");
+                          }}
+                          placeholder="Enter your email"
+                          className={clsx(
+                            "w-full pl-12 pr-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
+                            status === "error"
+                              ? "border-red-500/50 focus:ring-red-500/30"
+                              : "border-white/10 focus:ring-emerald-500/30 focus:border-emerald-500/50"
+                          )}
+                        />
+                      </div>
+                      {status === "error" && errorMessage && (
+                        <p className="mb-3 text-sm text-red-400">{errorMessage}</p>
+                      )}
+                      <button
+                        onClick={handleJoinWaitlist}
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-zinc-900 font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoading ? (
+                          <div className="w-5 h-5 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            Join Waitlist
+                            <ArrowRightIcon className="w-4 h-4" />
+                          </>
                         )}
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Step 2: Phone Number */}
-                <div className="mb-6">
-                  <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-3">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">2</span>
-                    Your WhatsApp number
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <PhoneIcon className="w-5 h-5 text-zinc-500" />
                     </div>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={handlePhoneChange}
-                      placeholder="+1 555 123 4567"
-                      className={clsx(
-                        "w-full pl-12 pr-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
-                        phoneError
-                          ? "border-red-500/50 focus:ring-red-500/30"
-                          : "border-white/10 focus:ring-emerald-500/30 focus:border-emerald-500/50"
-                      )}
-                    />
-                  </div>
-                  {phoneError && (
-                    <p className="mt-2 text-sm text-red-400">{phoneError}</p>
-                  )}
-                  <p className="mt-2 text-xs text-zinc-500">
-                    We'll send your assistant to this number
-                  </p>
-                </div>
-
-                {/* Step 3: Sign In */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-3">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">3</span>
-                    Create your assistant
-                  </label>
-                  <button
-                    onClick={handleGoogleSignIn}
-                    disabled={isLoading}
-                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-white hover:bg-zinc-100 text-zinc-900 font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                          <path
-                            fill="#4285F4"
-                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                          />
-                          <path
-                            fill="#34A853"
-                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                          />
-                          <path
-                            fill="#FBBC05"
-                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                          />
-                          <path
-                            fill="#EA4335"
-                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                          />
-                        </svg>
-                        Continue with Google
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Price note */}
-                <p className="mt-4 text-center text-xs text-zinc-500">
-                  $20/month • Cancel anytime
-                </p>
+                  </>
+                )}
               </div>
             </TiltCard>
           </div>
@@ -643,7 +659,7 @@ function PhoneDemoSection() {
                 }}
                 className="inline-flex items-center gap-2 px-6 py-3 text-base font-semibold text-zinc-900 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full hover:shadow-lg hover:shadow-emerald-500/25 transition-all"
               >
-                Get started now
+                Join waitlist
                 <ArrowRightIcon className="w-4 h-4" />
               </a>
             </div>
@@ -899,11 +915,11 @@ function PricingSection() {
               }}
               className="block w-full text-center py-4 text-lg font-semibold text-zinc-900 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-xl hover:shadow-lg hover:shadow-emerald-500/25 transition-all"
             >
-              Get Started
+              Join Waitlist
             </a>
 
             <p className="mt-4 text-center text-sm text-zinc-500">
-              Need more? Add your own API key for unlimited usage.
+              Launching February 12 • Need more? Add your own API key.
             </p>
           </div>
         </TiltCard>
@@ -994,11 +1010,16 @@ function CTASection() {
 
           {/* Content */}
           <div className="relative px-8 py-16 sm:px-16 text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6">
+              <span className="text-sm text-emerald-400 font-medium">
+                Launching February 12
+              </span>
+            </div>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Ready to get started?
+              Be first in line
             </h2>
             <p className="text-lg text-zinc-400 mb-8 max-w-xl mx-auto">
-              Your AI assistant is waiting. Set it up in 2 minutes and start managing your day smarter.
+              Join the waitlist and get early access to your personal AI assistant on WhatsApp.
             </p>
             <a
               href="#"
@@ -1008,11 +1029,11 @@ function CTASection() {
               }}
               className="group inline-flex items-center gap-2 px-8 py-4 text-lg font-semibold text-zinc-900 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full hover:shadow-lg hover:shadow-emerald-500/25 transition-all"
             >
-              Get Started — $20/month
+              Join Waitlist
               <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </a>
             <p className="mt-4 text-sm text-zinc-500">
-              Cancel anytime
+              $20/month after launch
             </p>
           </div>
         </div>
