@@ -133,12 +133,22 @@ function HeroSection() {
     setErrorMessage("");
 
     try {
+      // Format phone: if starts with +, keep as-is; otherwise assume US and add +1
+      let formattedPhone = undefined;
+      if (phoneNumber) {
+        if (phoneNumber.startsWith("+")) {
+          formattedPhone = "+" + phoneNumber.replace(/\D/g, "");
+        } else {
+          formattedPhone = "+1" + digits;
+        }
+      }
+
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          phone: phoneNumber ? (digits.startsWith("1") ? `+${digits}` : `+1${digits}`) : undefined,
+          phone: formattedPhone,
           model: selectedModel,
         }),
       });
