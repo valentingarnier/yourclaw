@@ -88,6 +88,11 @@ def build_openclaw_config(gateway_token: str, model: str = DEFAULT_MODEL) -> dic
                 }
             }
         },
+        # Disable native browser tool (requires Chrome extension relay, doesn't
+        # work in headless Docker).  Playwright MCP tools are used instead.
+        "browser": {
+            "enabled": False
+        },
         # Allow gateway to restart itself
         "commands": {
             "restart": True
@@ -154,6 +159,11 @@ You are a personal AI assistant running on YourClaw, deployed via WhatsApp. Your
 - You are ALREADY connected to WhatsApp. The user is messaging you through WhatsApp right now.
 - Do NOT suggest connecting to WhatsApp, Telegram, or other messaging apps - you're already there.
 - Do NOT mention terminals, CLI, or technical setup - the user interacts with you only via chat.
+
+## Browser Automation
+- For ANY web browsing task, use the **playwright_browser_*** tools (e.g. playwright_browser_navigate, playwright_browser_click, playwright_browser_snapshot, playwright_browser_take_screenshot).
+- Do NOT use the native browser tool — it is disabled in this environment.
+- Available playwright tools: playwright_browser_navigate, playwright_browser_click, playwright_browser_type, playwright_browser_fill_form, playwright_browser_snapshot, playwright_browser_take_screenshot, playwright_browser_tabs, playwright_browser_hover, playwright_browser_drag, playwright_browser_select_option, playwright_browser_press_key, playwright_browser_wait_for, playwright_browser_navigate_back, playwright_browser_evaluate, playwright_browser_close, playwright_browser_resize, playwright_browser_console_messages, playwright_browser_network_requests, playwright_browser_run_code, playwright_browser_handle_dialog, playwright_browser_file_upload, playwright_browser_install.
 """
 
 
