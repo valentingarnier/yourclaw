@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     default: "YourClaw — Your OpenClaw Instance in Seconds",
     template: "%s | YourClaw",
   },
-  description: "Deploy a fully managed OpenClaw AI assistant on WhatsApp & Telegram. No servers, no CLI, no setup. Just sign up and chat. Ready in 2 minutes.",
+  description: "Deploy a fully managed OpenClaw AI assistant on WhatsApp & Telegram. No servers, no CLI, no setup. Just sign up and chat. Ready in 1 minute.",
   keywords: ["OpenClaw", "AI assistant", "WhatsApp AI", "Telegram AI", "OpenClaw hosting", "AI agent", "deploy OpenClaw", "managed OpenClaw"],
   authors: [{ name: "YourClaw" }],
   creator: "YourClaw",

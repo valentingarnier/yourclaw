@@ -173,20 +173,20 @@ function HeroSection() {
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6 animate-reveal" style={{ animationDelay: "0.1s" }}>
-              <span className="text-white">Your personal AI</span>
+              <span className="text-white">The easiest way to</span>
               <br />
-              <span className="gradient-text text-glow">on WhatsApp & Telegram</span>
+              <span className="gradient-text text-glow">run OpenClaw</span>
             </h1>
 
             {/* Subheadline */}
             <p className="text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0 mb-8 animate-reveal" style={{ animationDelay: "0.2s" }}>
-              A full-power AI assistant that works 24/7 on WhatsApp or Telegram — research, write, analyze, and automate tasks. Just text it. No apps, no setup, no coding.
+              Get your own OpenClaw instance — fully managed, always on. Research, write, browse the web, run code. Just text it. No servers, no terminal, no setup.
             </p>
 
             {/* Stats */}
             <div className="flex items-center justify-center lg:justify-start gap-8 animate-reveal" style={{ animationDelay: "0.3s" }}>
               <div className="text-center">
-                <div className="text-2xl font-bold text-white">2 min</div>
+                <div className="text-2xl font-bold text-white">1 min</div>
                 <div className="text-sm text-zinc-500">to setup</div>
               </div>
               <div className="w-px h-10 bg-white/10" />
@@ -376,66 +376,76 @@ function HeroSection() {
 function TimeComparisonSection() {
   const painPoints = [
     "Rent and configure a server",
-    "Install dependencies manually",
-    "Debug cryptic error messages",
-    "Handle security updates",
+    "Install Node.js & dependencies",
+    "Debug Docker & config errors",
+    "Manage API keys & secrets",
     "Monitor uptime 24/7",
-    "Maintain your own code",
+    "Handle updates & maintenance",
   ];
 
   return (
     <section className="py-24 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Skip the <span className="gradient-text">technical headaches</span>
+            OpenClaw is powerful.{" "}
+            <span className="gradient-text">Setting it up isn&apos;t.</span>
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            Building your own AI assistant means dealing with servers, configs, and maintenance.
-            <br />We handle all of that for you.
+            Self-hosting OpenClaw means servers, Docker, configs, and terminal commands.
+            <br />We handle all of that — you just text.
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-5 gap-8 items-center">
-          {/* Pain points - crossed out */}
-          <div className="lg:col-span-3 p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
-            <p className="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-6">
-              What you&apos;ll never deal with
-            </p>
-            <div className="grid sm:grid-cols-2 gap-4">
-              {painPoints.map((point, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 group"
-                >
-                  <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-3 h-3 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+        <div className="grid lg:grid-cols-2 gap-10 items-center">
+          {/* Left: Pain points + solution */}
+          <div className="space-y-6">
+            <div className="p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
+              <p className="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-6">
+                Self-hosting OpenClaw? You&apos;ll need to...
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {painPoints.map((point, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 group"
+                  >
+                    <div className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <span className="text-zinc-500 line-through decoration-zinc-700">{point}</span>
                   </div>
-                  <span className="text-zinc-500 line-through decoration-zinc-700">{point}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Arrow */}
-          <div className="hidden lg:flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-              <ArrowRightIcon className="w-5 h-5 text-emerald-400" />
-            </div>
-          </div>
-
-          {/* Simple solution */}
-          <div className="lg:col-span-1">
-            <div className="relative p-6 rounded-2xl bg-gradient-to-b from-emerald-500/10 to-zinc-900/50 border border-emerald-500/20 text-center">
-              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
-              <div className="text-4xl font-bold gradient-text mb-2">Just text.</div>
-              <p className="text-zinc-400 text-sm">That&apos;s it.</p>
-              <div className="mt-4 pt-4 border-t border-white/5">
-                <p className="text-xs text-zinc-500">Setup time</p>
-                <p className="text-lg font-semibold text-emerald-400">~2 min</p>
+                ))}
               </div>
+            </div>
+
+            <div className="relative p-6 rounded-2xl bg-gradient-to-b from-emerald-500/10 to-zinc-900/50 border border-emerald-500/20">
+              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+              <div className="flex items-center gap-4">
+                <div className="text-4xl font-bold gradient-text">Or</div>
+                <div>
+                  <p className="text-white font-semibold text-lg">Just use YourClaw</p>
+                  <p className="text-zinc-400 text-sm">Sign up, pick a channel, start chatting. ~1 min setup.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Demo video */}
+          <div className="relative">
+            <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-purple-500/10 rounded-3xl blur-2xl" />
+            <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+              <video
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full"
+              >
+                <source src="/yourclaw-demo.mp4" type="video/mp4" />
+              </video>
             </div>
           </div>
         </div>
@@ -803,7 +813,7 @@ function HowItWorks() {
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Ready in <span className="gradient-text">2 minutes</span>
+            Ready in <span className="gradient-text">1 minute</span>
           </h2>
           <p className="text-lg text-zinc-400">
             No technical knowledge required. Seriously.
@@ -842,8 +852,8 @@ function PricingSection() {
   const features = [
     "Unlimited messages",
     "Web browsing & research",
+    "Your own personal server",
     "File creation & analysis",
-    "Code execution",
     "24/7 availability",
     "Priority support",
   ];
@@ -870,7 +880,8 @@ function PricingSection() {
                 <span className="text-5xl font-bold text-white">$20</span>
                 <span className="text-xl text-zinc-500">/month</span>
               </div>
-              <p className="mt-2 text-zinc-500">Cancel anytime</p>
+              <p className="mt-2 text-emerald-400 font-medium">$10 in AI credits on first purchase</p>
+              <p className="mt-1 text-zinc-500 text-sm">Cancel anytime</p>
             </div>
 
             <div className="space-y-3 mb-8">
@@ -987,7 +998,7 @@ function CTASection() {
               Ready to get started?
             </h2>
             <p className="text-lg text-zinc-400 mb-8 max-w-xl mx-auto">
-              Get your personal AI assistant on WhatsApp or Telegram in under 2 minutes.
+              Get your personal AI assistant on WhatsApp or Telegram in under 1 minute.
             </p>
             <Link
               href="/login"
