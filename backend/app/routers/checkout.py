@@ -40,6 +40,9 @@ async def create_checkout(user_id: uuid.UUID = Depends(get_current_user)) -> Che
                     "quantity": 1,
                 }
             ],
+            subscription_data={
+                "trial_period_days": 2,
+            },
             metadata={"user_id": str(user_id)},
             success_url=f"{settings.app_url}/dashboard?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{settings.app_url}/dashboard",

@@ -14,9 +14,68 @@ import {
 import clsx from "clsx";
 import { MouseGradient, SpotlightCard, TiltCard } from "@/components/marketing/mouse-gradient";
 
+function OfferBanner() {
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
+
+  useEffect(() => {
+    // Set deadline to 48h from first visit (persisted in localStorage)
+    const STORAGE_KEY = "yourclaw_offer_deadline";
+    let deadline = localStorage.getItem(STORAGE_KEY);
+    if (!deadline) {
+      const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      deadline = d.toISOString();
+      localStorage.setItem(STORAGE_KEY, deadline);
+    }
+    const deadlineDate = new Date(deadline);
+
+    const tick = () => {
+      const now = new Date();
+      const diff = deadlineDate.getTime() - now.getTime();
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeLeft({ hours, minutes, seconds });
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const pad = (n: number) => n.toString().padStart(2, "0");
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-500">
+      <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm font-medium text-white">
+        <span className="hidden sm:inline px-2 py-0.5 rounded bg-white/20 text-xs font-bold uppercase tracking-wide">
+          Launch deal
+        </span>
+        <span className="hidden sm:inline">Try OpenClaw free for 48h</span>
+        <span className="sm:hidden">48h free</span>
+        <span className="text-white/80">·</span>
+        <span className="font-mono font-bold text-base tabular-nums">
+          {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}
+        </span>
+        <span className="hidden sm:inline text-white/80">left</span>
+        <Link
+          href="/login"
+          className="ml-2 px-3 py-1 rounded-full bg-white text-emerald-700 text-xs font-bold hover:bg-white/90 transition-colors"
+        >
+          Start free
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <div className="relative">
+      <OfferBanner />
       <MouseGradient />
       <HeroSection />
       <TimeComparisonSection />
@@ -147,7 +206,7 @@ function HeroSection() {
   };
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-24">
       {/* Animated gradient orbs */}
       <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[120px] animate-pulse-glow" />
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-cyan-500/20 rounded-full blur-[100px] animate-pulse-glow" style={{ animationDelay: "-2s" }} />
@@ -198,6 +257,11 @@ function HeroSection() {
               <div className="text-center">
                 <div className="text-2xl font-bold text-white">$20</div>
                 <div className="text-sm text-zinc-500">/month</div>
+              </div>
+              <div className="w-px h-10 bg-white/10" />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-emerald-400">48h</div>
+                <div className="text-sm text-emerald-500/70">free trial</div>
               </div>
             </div>
           </div>
@@ -880,8 +944,14 @@ function PricingSection() {
                 <span className="text-5xl font-bold text-white">$20</span>
                 <span className="text-xl text-zinc-500">/month</span>
               </div>
-              <p className="mt-2 text-emerald-400 font-medium">$10 in AI credits on first purchase</p>
-              <p className="mt-1 text-zinc-500 text-sm">Cancel anytime</p>
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-emerald-400 font-medium text-sm">Limited offer: 48h free + $10 in credits</span>
+              </div>
+              <p className="mt-2 text-zinc-500 text-sm">Cancel anytime</p>
             </div>
 
             <div className="space-y-3 mb-8">
@@ -1008,7 +1078,7 @@ function CTASection() {
               <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <p className="mt-4 text-sm text-zinc-500">
-              $20/month • Cancel anytime
+              $20/month • 48h free trial • $10 in credits • Cancel anytime
             </p>
           </div>
         </div>
