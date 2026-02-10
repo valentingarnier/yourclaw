@@ -3,7 +3,7 @@
 ## Product
 Multi-channel AI assistant (WhatsApp + Telegram). User signs in, chooses a channel (WhatsApp or Telegram), pays, gets a personal Openclaw instance. No setup, no technical knowledge required.
 
-Positioning: "Your always-on AI assistant on WhatsApp & Telegram. Watches, notifies, acts — while you sleep."
+Positioning: "The easiest way to run OpenClaw. Fully managed, on WhatsApp & Telegram. No servers, no terminal, no setup."
 
 ## Architecture Decisions
 - **Auth + DB**: Supabase (Google sign-in only, cloud Postgres, no local emulator)
@@ -19,7 +19,7 @@ Positioning: "Your always-on AI assistant on WhatsApp & Telegram. Watches, notif
 - **Job queue**: DB-backed (`provisioning_jobs` table + Python worker polling). No Redis/Celery for MVP. Low traffic assumed.
 - **LLM providers**: Anthropic, OpenAI, Google. Shared API keys for MVP, BYOK supported (users can add their own keys from dashboard).
 - **Openclaw tools**: ALL tools enabled. No restrictions. Full power of Openclaw.
-- **Payments**: Stripe Checkout for subscription. Required before assistant creation.
+- **Payments**: Stripe Checkout for subscription with 48h free trial. $10 credits on first purchase. Required before assistant creation.
 - **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true`, `MOCK_TELEGRAM=true` for local dev without real credentials.
 
 ## User Journey (End to End)
@@ -30,7 +30,7 @@ Positioning: "Your always-on AI assistant on WhatsApp & Telegram. Watches, notif
 4. User is redirected to /onboarding (if no channel set)
 5. User selects channel (WhatsApp or Telegram) and enters contact info on /dashboard
 6. User clicks "Create my assistant" on /dashboard (channel picker is inline)
-7. No active subscription? → Redirect to Stripe Checkout ($20/mo)
+7. No active subscription? → Redirect to Stripe Checkout ($20/mo, 48h free trial)
 8. Stripe payment succeeds → webhook fires → subscription created in DB
 9. User returns to dashboard → provisioning starts automatically
 10. Backend creates provisioning_job → worker picks up
@@ -734,7 +734,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxx
 - **Multi-provider support**: Anthropic, OpenAI, and Google keys supported
 - **Shared keys**: Default keys for all providers set via environment variables on containers
 - **BYOK implemented**: Users can add their own API keys from Dashboard → API Keys section
-- **No credits system**: Simple $20/month subscription with shared API keys
+- **Pricing**: $20/month subscription with 48h free trial + $10 AI credits on first purchase
 
 ### BYOK (Bring Your Own Key)
 
@@ -769,8 +769,8 @@ DELETE /api/v1/api-keys/{provider}   — remove key → triggers reprovision (re
 - **Security**: Keys never exposed in API responses, only provider name and created_at returned
 
 ## Stripe Integration (COMPLETE)
-- **Model**: Monthly subscription ($20/mo) via Stripe Checkout
-- **Product setup**: One Stripe Product with one Price ($20/month recurring)
+- **Model**: Monthly subscription ($20/mo) via Stripe Checkout with 48h free trial
+- **Product setup**: One Stripe Product with one Price ($20/month recurring), 2-day trial via `subscription_data.trial_period_days`
 - **Checkout flow**: Backend creates Stripe Checkout Session → frontend redirects → user pays → webhook confirms
 - **Webhook events handled**:
   - `checkout.session.completed` → create subscription + trigger provisioning
@@ -782,7 +782,7 @@ DELETE /api/v1/api-keys/{provider}   — remove key → triggers reprovision (re
 - **Test card**: `4242 4242 4242 4242` with any future date and CVC
 - **Mock mode**: `MOCK_STRIPE=true` skips payment, auto-creates subscription for dev
 
-**Note**: Credits system is NOT implemented. Website now shows simple $20/month pricing without credits mention.
+**Note**: $10 credits offered on first purchase (launch offer). 48h free trial enabled via Stripe `trial_period_days: 2`. Landing page shows countdown banner with offer.
 
 **Stripe Test Credentials (configured in .env):**
 - Product: YourClaw Pro ($20/month)
@@ -1033,7 +1033,7 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
   - [x] Webhook handles customer.subscription.deleted → cancels + stops container
   - [x] Frontend redirects to Stripe Checkout when user has no subscription
   - [x] Tested end-to-end with Stripe CLI
-  - [x] Removed "$10 credits" from website (no credits system for MVP)
+  - [x] Added "$10 credits on first purchase" + 48h free trial offer
 - [x] **Container cleanup fix**:
   - [x] DELETE /assistants now keeps container_id (was clearing it immediately)
   - [x] Worker cleanup_deleted_assistants() properly stops containers with status=NONE
@@ -1235,16 +1235,32 @@ async def send_ready_notification(user_id: str) -> None:
   - CORS configured with automatic www/non-www variants and trailing slash handling
   - Environment variables: `APP_URL`, `MARKETING_URL` set in Render
 - [x] **Marketing page polish** (2026-02-08):
-  - Removed all "$10 in AI credits" references (pricing, hero, CTA, FAQ)
   - Phone placeholder now E.164 format: `+1 555 123 4567`
   - Competitor section: replaced "Non-technical? Multiply by 10×" with maintenance note
-  - FAQ: "Powered by OpenClaw" (not Claude), removed credits question
+  - FAQ: "Powered by OpenClaw" (not Claude)
   - Phone mockup improvements:
     - Header: "Y" logo, "YourClaw" name, compact design
     - Messages: varying timestamps (9:41 AM, 9:42 AM)
     - Proper WhatsApp blue double-check SVG icons
   - Model selector: official logos (Claude, OpenAI, Gemini) in `/public/`
   - Model buttons: added shadows for depth
+- [x] **Landing page rebrand — OpenClaw focus** (2026-02-09):
+  - Hero: "The easiest way to run OpenClaw" (was "Your personal AI on WhatsApp & Telegram")
+  - Subtitle: "Get your own OpenClaw instance — fully managed, always on"
+  - "Skip the technical headaches" → "OpenClaw is powerful. Setting it up isn't."
+  - Pain points rewritten for OpenClaw self-hosting (Docker, Node.js, API keys)
+  - Demo video (`yourclaw-demo.mp4`) autoplay next to pain points section
+  - Pricing features: removed "Code execution", added "Your own personal server"
+  - All "2 min" → "1 min" across landing page + metadata
+  - SEO metadata updated: "YourClaw — Your OpenClaw Instance in Seconds"
+- [x] **48h free trial + $10 credits offer** (2026-02-09):
+  - Stripe: `subscription_data.trial_period_days: 2` on checkout session
+  - Fixed countdown banner at top of landing page (48h from first visit, localStorage)
+  - Banner: "Launch deal · Try OpenClaw free for 48h · HH:MM:SS left · Start free"
+  - Pricing card: pulsing green badge "Limited offer: 48h free + $10 in credits"
+  - Hero stats: added "48h free trial" in emerald green
+  - CTA footer: "$20/month · 48h free trial · $10 in credits · Cancel anytime"
+  - Header pushed down (`top-10`) to sit below banner (`top-0 z-50`)
 
 ### Working Style
 - Step by step, building block by building block
