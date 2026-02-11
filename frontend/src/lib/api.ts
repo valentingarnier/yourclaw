@@ -139,6 +139,17 @@ export interface ApiKeyResponse {
   has_key: boolean;
 }
 
+// Subscription
+export interface SubscriptionDetails {
+  status: string; // ACTIVE, PAST_DUE, CANCELED
+  credits_remaining_cents: number;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  plan_name: string;
+  price: string;
+  trial_end: string | null;
+}
+
 export const API_KEY_PROVIDERS = [
   { id: "ANTHROPIC", name: "Anthropic", description: "Claude models" },
   { id: "OPENAI", name: "OpenAI", description: "GPT models" },
@@ -177,6 +188,10 @@ export const api = {
   deleteAssistant: () => apiDelete("/api/v1/assistants"),
   getUsage: () => apiGet<UsageResponse>("/api/v1/usage"),
   createCheckout: () => apiPost<{ checkout_url: string }>("/api/v1/checkout"),
+
+  // Subscription
+  getSubscription: () => apiGet<SubscriptionDetails>("/api/v1/subscription"),
+  cancelSubscription: () => apiPost<{ status: string; cancels_at: string }>("/api/v1/subscription/cancel"),
 
   // Integrations
   getIntegrations: () => apiGet<IntegrationsResponse>("/api/v1/oauth/integrations"),

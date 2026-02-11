@@ -73,6 +73,22 @@ async def test_welcome_email(
     return {"status": "sent", "to": email, "first_name": first_name, "channel": channel}
 
 
+@app.post("/api/v1/test/cancellation-email")
+async def test_cancellation_email(
+    email: str = "test@example.com",
+    first_name: str = "Valentin",
+    channel: str = "WHATSAPP",
+) -> dict:
+    """Test endpoint to preview/send the cancellation email.
+
+    Usage: POST /api/v1/test/cancellation-email?email=you@example.com&first_name=John&channel=TELEGRAM
+    """
+    from app.services.email_service import send_cancellation_email
+
+    await send_cancellation_email(email, first_name, channel)
+    return {"status": "sent", "to": email, "first_name": first_name, "channel": channel}
+
+
 # Register routers
 from app.routers import api_keys, assistants, checkout, oauth, usage, users, webhooks
 

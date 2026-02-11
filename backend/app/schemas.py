@@ -83,6 +83,15 @@ class SubscriptionResponse(BaseModel):
     status: str  # ACTIVE, PAST_DUE, CANCELED
     credits_remaining_cents: int
     current_period_end: datetime | None = None
+    cancel_at_period_end: bool = False
+    plan_name: str = "YourClaw Pro"
+    price: str = "$20/month"
+    trial_end: datetime | None = None
+
+
+class CancelResponse(BaseModel):
+    status: str  # "scheduled"
+    cancels_at: str | None = None
 
 
 # --- API Keys (BYOK) ---

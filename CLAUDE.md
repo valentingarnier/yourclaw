@@ -180,6 +180,7 @@ Stripe webhook → POST /api/v1/webhooks/stripe
       openclaw_client.py   — HTTP adapter for Openclaw chat completions API
       twilio_service.py    — Send WhatsApp messages, validate signatures
       stripe_service.py    — Checkout session, webhook handling
+      email_service.py     — Welcome email via Resend (HTML template, best-effort)
       encryption.py        — Fernet encrypt/decrypt for API keys + gateway tokens
       credits.py           — Credit tracking, cost estimation
     worker.py              — Provisioning job worker (polls DB, runs provisioning)
@@ -367,8 +368,13 @@ DELETE /assistants                    — destroy assistant + container
 # Payments
 POST   /checkout                      — create Stripe Checkout session
   → returns { "checkout_url": "https://checkout.stripe.com/..." }
-GET    /subscription                  — get subscription status
-  → returns { "status": "ACTIVE", "current_period_end": "..." }
+GET    /subscription                  — get subscription status + details
+  → returns { "status": "ACTIVE", "current_period_end": "...", "cancel_at_period_end": false, "plan_name": "...", "trial_end": "..." }
+  → fetches live cancel_at_period_end and trial_end from Stripe API
+POST   /subscription/cancel           — cancel subscription at period end
+  → calls stripe.Subscription.modify(cancel_at_period_end=True)
+  → user keeps access until current_period_end
+  → returns { "status": "scheduled", "cancels_at": "..." }
 
 # API Keys (BYOK) - UI not exposed yet
 POST   /api-keys                      — store user's Anthropic key { "provider": "ANTHROPIC", "key": "sk-..." }
@@ -1261,6 +1267,32 @@ async def send_ready_notification(user_id: str) -> None:
   - Hero stats: added "48h free trial" in emerald green
   - CTA footer: "$20/month · 48h free trial · $10 in credits · Cancel anytime"
   - Header pushed down (`top-10`) to sit below banner (`top-0 z-50`)
+
+- [x] **Welcome email on subscription** (2026-02-11):
+  - `backend/app/services/email_service.py` — HTML template with brand colors (emerald→cyan gradient)
+  - Sent from `Valentin from YourClaw <hello@yourclaw.dev>` via Resend
+  - Triggered in `handle_checkout_completed()` (best-effort, won't block checkout)
+  - Fetches user email + first name from Supabase auth, channel from user_phones
+  - Content: welcome, checklist of features, "what happens next" steps, dashboard CTA
+  - Test endpoint: `POST /api/v1/test/welcome-email?email=...&first_name=...&channel=...`
+  - Added `resend>=2.0.0` to backend deps, `resend_api_key` to config
+- [x] **Subscription management UI** (2026-02-11):
+  - New "Subscription" section in dashboard sidebar (CreditCardIcon)
+  - Plan card: name, price ($20/month), status badge, next billing date
+  - States: Active (green), Free Trial (emerald), Canceling (amber), Past Due (red), Canceled (red)
+  - Cancel button → confirmation Dialog ("No immediate changes, keep access until period end")
+  - Credits card showing remaining balance
+  - `POST /api/v1/subscription/cancel` — calls `stripe.Subscription.modify(cancel_at_period_end=True)`
+  - `GET /api/v1/subscription` enriched — fetches live `cancel_at_period_end`, `trial_end` from Stripe
+  - `customer.subscription.updated` webhook handler syncs period end + status
+  - Uses `.get()` for Stripe object attributes (SDK compatibility)
+- [x] **Terms and Conditions rewrite** (2026-02-11):
+  - Section 5: AI Agent Disclaimer (6 subsections) — YourClaw is infrastructure only, no control over agent
+  - Client solely responsible for all agent actions, code execution, web browsing, outputs
+  - Full indemnification clause, no warranty on AI behavior
+  - Third-party AI model disclaimer (Anthropic, OpenAI, Google)
+  - BYOK section, IP clarification (OpenClaw not affiliated with YourClaw)
+  - Updated to February 2026, Telegram mentioned alongside WhatsApp
 
 ### Working Style
 - Step by step, building block by building block

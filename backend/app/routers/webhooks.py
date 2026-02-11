@@ -10,7 +10,11 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.config import settings
 from app.database import db
-from app.services.email_service import send_welcome_email
+from app.services.email_service import (
+    send_cancellation_email,
+    send_new_subscriber_notification,
+    send_welcome_email,
+)
 from app.services.encryption import decrypt
 
 logger = logging.getLogger("yourclaw.webhooks")
@@ -517,6 +521,8 @@ async def stripe_webhook(request: Request) -> dict:
         await handle_invoice_paid(data)
     elif event_type == "invoice.payment_failed":
         await handle_invoice_failed(data)
+    elif event_type == "customer.subscription.updated":
+        await handle_subscription_updated(data)
     elif event_type == "customer.subscription.deleted":
         await handle_subscription_deleted(data)
 
@@ -589,6 +595,7 @@ async def handle_checkout_completed(session: dict) -> None:
 
                 if email:
                     await send_welcome_email(email, first_name, channel)
+                    await send_new_subscriber_notification(email, first_name, channel, user_id)
     except Exception as e:
         logger.error(f"Failed to send welcome email for user {user_id}: {e}")
 
@@ -678,3 +685,62 @@ async def handle_subscription_deleted(subscription: dict) -> None:
     )
 
     logger.info(f"Subscription canceled for user {user_id}")
+
+    # Send cancellation email (best-effort)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
+                headers={
+                    "apikey": settings.supabase_service_role_key,
+                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                },
+            )
+            if resp.status_code == 200:
+                user_data = resp.json()
+                email = user_data.get("email", "")
+                meta = user_data.get("user_metadata", {})
+                first_name = meta.get("name", "").split(" ")[0] if meta.get("name") else ""
+                phone_row = await db.select("user_phones", filters={"user_id": user_id}, single=True)
+                channel = phone_row["channel"] if phone_row else "WHATSAPP"
+
+                if email:
+                    await send_cancellation_email(email, first_name, channel)
+    except Exception as e:
+        logger.error(f"Failed to send cancellation email for user {user_id}: {e}")
+
+
+async def handle_subscription_updated(subscription: dict) -> None:
+    """Handle subscription updates: sync cancel_at_period_end and period end."""
+    subscription_id = subscription["id"]
+
+    sub = await db.select(
+        "subscriptions",
+        filters={"stripe_subscription_id": subscription_id},
+        single=True,
+    )
+    if not sub:
+        return
+
+    user_id = sub["user_id"]
+
+    update_data: dict = {"updated_at": datetime.utcnow().isoformat()}
+
+    if "current_period_end" in subscription and subscription["current_period_end"]:
+        update_data["current_period_end"] = datetime.fromtimestamp(
+            subscription["current_period_end"]
+        ).isoformat()
+
+    # Map Stripe status to our status
+    stripe_status = subscription.get("status")
+    if stripe_status == "active":
+        update_data["status"] = "ACTIVE"
+    elif stripe_status == "past_due":
+        update_data["status"] = "PAST_DUE"
+
+    await db.update("subscriptions", update_data, {"user_id": user_id})
+
+    logger.info(
+        f"Subscription updated for user {user_id}: "
+        f"cancel_at_period_end={subscription.get('cancel_at_period_end')}"
+    )

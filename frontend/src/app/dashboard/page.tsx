@@ -10,6 +10,7 @@ import {
   UsageResponse,
   IntegrationsResponse,
   ApiKeyResponse,
+  SubscriptionDetails,
   AVAILABLE_MODELS,
   DEFAULT_MODEL,
   API_KEY_PROVIDERS,
@@ -66,9 +67,10 @@ import {
   ClockIcon,
   PaperAirplaneIcon,
   LightBulbIcon,
+  CreditCardIcon,
 } from "@heroicons/react/20/solid";
 
-type Section = "assistant" | "tools" | "services" | "usage" | "apikeys";
+type Section = "assistant" | "tools" | "services" | "usage" | "apikeys" | "subscription";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -246,6 +248,10 @@ export default function DashboardPage() {
             <ChartBarIcon />
             <SidebarLabel>Usage</SidebarLabel>
           </SidebarItem>
+          <SidebarItem current={activeSection === "subscription"} onClick={() => setActiveSection("subscription")}>
+            <CreditCardIcon />
+            <SidebarLabel>Subscription</SidebarLabel>
+          </SidebarItem>
         </SidebarSection>
 
         <SidebarSpacer />
@@ -329,6 +335,8 @@ export default function DashboardPage() {
         )} */}
 
         {activeSection === "usage" && <UsageSection usage={usage} user={user} />}
+
+        {activeSection === "subscription" && <SubscriptionSection />}
       </div>
     </SidebarLayout>
   );
@@ -1358,4 +1366,281 @@ function ModelButton({
       )}
     </button>
   );
+}
+
+
+// ─── Subscription Section ─────────────────────────────────────────────────
+
+function SubscriptionSection() {
+  const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadSubscription();
+  }, []);
+
+  async function loadSubscription() {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await api.getSubscription();
+      setSubscription(data);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("404")) {
+        setSubscription(null);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to load subscription");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCancel() {
+    try {
+      setCanceling(true);
+      setError(null);
+      await api.cancelSubscription();
+      await loadSubscription();
+      setCancelDialogOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cancel subscription");
+    } finally {
+      setCanceling(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-white" />
+      </div>
+    );
+  }
+
+  const isTrialing = subscription?.trial_end && new Date(subscription.trial_end) > new Date();
+
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+  const periodEndDate = subscription?.current_period_end
+    ? formatDate(subscription.current_period_end)
+    : null;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Heading>Subscription</Heading>
+        <Text className="mt-2">Manage your YourClaw subscription and billing.</Text>
+      </div>
+
+      <Divider />
+
+      {error && (
+        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-4 text-red-700 dark:text-red-400 text-sm">
+          {error}
+        </div>
+      )}
+
+      {!subscription ? (
+        <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6 text-center">
+          <CreditCardIcon className="mx-auto size-8 text-zinc-400 dark:text-zinc-600" />
+          <p className="mt-3 text-sm font-medium text-zinc-950 dark:text-white">No active subscription</p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Subscribe to get your own AI assistant.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Plan Card */}
+          <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <Subheading>{subscription.plan_name}</Subheading>
+                <p className="mt-1 text-2xl font-semibold text-zinc-950 dark:text-white">
+                  {subscription.price}
+                </p>
+              </div>
+              <SubscriptionBadge
+                status={subscription.status}
+                cancelAtPeriodEnd={subscription.cancel_at_period_end}
+                isTrialing={!!isTrialing}
+              />
+            </div>
+
+            <Divider soft />
+
+            {/* Status Details */}
+            <div className="mt-6 space-y-4">
+              {isTrialing && (
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                    <SparklesIcon className="size-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-950 dark:text-white">Free Trial Active</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      Your trial ends on {formatDate(subscription.trial_end!)}. After that, you&apos;ll be charged {subscription.price}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {subscription.cancel_at_period_end ? (
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+                    <ClockIcon className="size-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-950 dark:text-white">Subscription Ending</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      Your subscription will cancel on {periodEndDate}. You&apos;ll keep full access until then.
+                    </p>
+                  </div>
+                </div>
+              ) : subscription.status === "ACTIVE" && !isTrialing ? (
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                    <CheckIcon className="size-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-950 dark:text-white">Active Subscription</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {periodEndDate ? `Next billing date: ${periodEndDate}` : "Your subscription is active."}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {subscription.status === "PAST_DUE" && (
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
+                    <XMarkIcon className="size-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-950 dark:text-white">Payment Failed</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      Your last payment failed. Please update your payment method to continue service. Contact hello@yourclaw.dev for help.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {subscription.status === "CANCELED" && (
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
+                    <XMarkIcon className="size-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-950 dark:text-white">Subscription Canceled</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      Your subscription has been canceled. Your assistant has been stopped.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Cancel Action */}
+            {subscription.status === "ACTIVE" && !subscription.cancel_at_period_end && (
+              <div className="mt-6 pt-6 border-t border-zinc-950/5 dark:border-white/5">
+                <button
+                  onClick={() => setCancelDialogOpen(true)}
+                  className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  Cancel subscription
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Credits Card */}
+          <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
+            <Subheading className="mb-4">API Credits</Subheading>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-3xl font-semibold text-zinc-950 dark:text-white">
+                  ${(subscription.credits_remaining_cents / 100).toFixed(2)}
+                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Remaining credits</p>
+              </div>
+              <SparklesIcon className="size-8 text-zinc-400 dark:text-zinc-600" />
+            </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-4">
+              Credits are used when your assistant uses our shared API keys.
+              Add your own API keys to avoid credit usage.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={cancelDialogOpen} onClose={() => setCancelDialogOpen(false)}>
+        <DialogTitle>Cancel Subscription?</DialogTitle>
+        <DialogDescription>
+          {periodEndDate
+            ? `Your subscription will remain active until ${periodEndDate}. You'll keep full access to your assistant until then.`
+            : "Your subscription will be canceled at the end of the current billing period."}
+        </DialogDescription>
+        <DialogBody>
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-4">
+            <div className="flex gap-3">
+              <ClockIcon className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                  No immediate changes
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  Your assistant will continue working until the end of the billing period.
+                  After that, your container will be stopped.
+                </p>
+              </div>
+            </div>
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setCancelDialogOpen(false)}>
+            Keep Subscription
+          </Button>
+          <Button
+            color="red"
+            onClick={handleCancel}
+            disabled={canceling}
+          >
+            {canceling ? "Canceling..." : "Cancel Subscription"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </div>
+  );
+}
+
+function SubscriptionBadge({
+  status,
+  cancelAtPeriodEnd,
+  isTrialing,
+}: {
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  isTrialing: boolean;
+}) {
+  if (isTrialing && status === "ACTIVE") {
+    return <Badge color="emerald">Free Trial</Badge>;
+  }
+  if (cancelAtPeriodEnd) {
+    return <Badge color="amber">Canceling</Badge>;
+  }
+  const colors: Record<string, "green" | "amber" | "red" | "zinc"> = {
+    ACTIVE: "green",
+    PAST_DUE: "amber",
+    CANCELED: "red",
+  };
+  return <Badge color={colors[status] || "zinc"}>{status}</Badge>;
 }
