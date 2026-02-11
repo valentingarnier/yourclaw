@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from app.config import settings
 from app.database import db
 from app.services.email_service import (
+    add_resend_contact,
     send_cancellation_email,
     send_new_subscriber_notification,
     send_welcome_email,
@@ -615,9 +616,15 @@ async def handle_checkout_completed(session: dict) -> None:
                 phone_row = await db.select("user_phones", filters={"user_id": user_id}, single=True)
                 channel = phone_row["channel"] if phone_row else "WHATSAPP"
 
+                # Extract last name
+                full_name = meta.get("name", "")
+                name_parts = full_name.split(" ", 1) if full_name else []
+                last_name = name_parts[1] if len(name_parts) > 1 else ""
+
                 if email:
                     await send_welcome_email(email, first_name, channel)
                     await send_new_subscriber_notification(email, first_name, channel, user_id)
+                    await add_resend_contact(email, first_name, last_name)
     except Exception as e:
         logger.error(f"Failed to send welcome email for user {user_id}: {e}")
 

@@ -378,6 +378,28 @@ async def send_welcome_email(email: str, first_name: str, channel: str) -> None:
         logger.error(f"Failed to send welcome email to {email}: {e}")
 
 
+async def add_resend_contact(email: str, first_name: str, last_name: str = "") -> None:
+    """Add a new subscriber as a contact in Resend.
+
+    Contacts are global in Resend and can be assigned to segments later.
+    """
+    if not settings.resend_api_key:
+        return
+
+    resend.api_key = settings.resend_api_key
+
+    try:
+        resend.Contacts.create({
+            "email": email,
+            "first_name": first_name or "",
+            "last_name": last_name or "",
+            "unsubscribed": False,
+        })
+        logger.info(f"Resend contact created for {email}")
+    except Exception as e:
+        logger.error(f"Failed to create Resend contact for {email}: {e}")
+
+
 async def send_new_subscriber_notification(
     email: str, first_name: str, channel: str, user_id: str
 ) -> None:
