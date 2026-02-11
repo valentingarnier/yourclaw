@@ -22,7 +22,7 @@ function OfferBanner() {
     const STORAGE_KEY = "yourclaw_offer_deadline";
     let deadline = localStorage.getItem(STORAGE_KEY);
     if (!deadline) {
-      const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const d = new Date(Date.now() + 96 * 60 * 60 * 1000);
       deadline = d.toISOString();
       localStorage.setItem(STORAGE_KEY, deadline);
     }
