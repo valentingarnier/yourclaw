@@ -306,6 +306,7 @@ async def send_twilio_template(to_number: str, content_sid: str, from_number: st
         from_=sender,
         to=f"whatsapp:{to_number}",
         content_sid=content_sid,
+        content_variables="{}",
     )
     logger.info(f"Twilio template sent: SID={message.sid}, status={message.status}")
 

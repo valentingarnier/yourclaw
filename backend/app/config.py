@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_whatsapp_number: str = ""  # e.g. whatsapp:+14155238886
-    twilio_template_assistant_ready: str = "HX2da33755ce26e6cd5177e9d07bba71d6"  # Content template SID
+    twilio_template_assistant_ready: str = "HXf1d69b40b8b9a82617d8d440ff51f152"  # Content template SID
 
     # Stripe
     stripe_secret_key: str = ""
