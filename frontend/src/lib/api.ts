@@ -94,8 +94,7 @@ export const AVAILABLE_MODELS = [
   // Google
   { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Google's fast model", provider: "google", comingSoon: false },
   { id: "google/gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", description: "Lightweight and fast", provider: "google", comingSoon: false },
-  // Coming Soon
-  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful", provider: "anthropic", comingSoon: true },
+  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful", provider: "anthropic", comingSoon: false },
 ] as const;
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";

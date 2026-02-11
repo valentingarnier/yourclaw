@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -94,28 +95,20 @@ async def twilio_whatsapp(request: Request) -> Response:
 
     user_id = phone_row["user_id"]
 
-    # Reply mode: TwiML inline (works without Meta approval for outbound)
-    # TODO: Switch to REST API once Meta approves WhatsApp Business Account for outbound
-    # is_production_rest = "+14155238886" not in to_number  # Re-enable when approved
-
-    async def reply_message(msg: str) -> Response:
-        """Send reply via TwiML inline response."""
-        import html
-        escaped = html.escape(msg)
-        return Response(content=f"<Response><Message>{escaped}</Message></Response>", media_type="application/xml")
-
     # Check assistant is ready
     assistant = await db.select("assistants", filters={"user_id": user_id}, single=True)
     if not assistant or assistant["status"] != "READY":
         logger.warning(f"Assistant not ready for user {user_id}")
-        return await reply_message("Your assistant is not ready yet. Please wait.")
+        await send_twilio_message(from_number, "Your assistant is not ready yet. Please wait.", from_number=to_number)
+        return Response(content="<Response></Response>", media_type="application/xml")
 
     # Check rate limits
     today = date.today().isoformat()
     usage = await db.select("usage_daily", filters={"user_id": user_id, "date": today}, single=True)
 
     if usage and usage["inbound_count"] >= settings.rate_limit_msg_per_day:
-        return await reply_message("Daily message limit reached. Try again tomorrow.")
+        await send_twilio_message(from_number, "Daily message limit reached. Try again tomorrow.", from_number=to_number)
+        return Response(content="<Response></Response>", media_type="application/xml")
 
     # Check credits (if using shared key)
     api_key = await db.select("api_keys", filters={"user_id": user_id, "provider": "ANTHROPIC"}, single=True)
@@ -123,7 +116,8 @@ async def twilio_whatsapp(request: Request) -> Response:
         # Using shared key, check credits
         credits = await db.select("user_credits", filters={"user_id": user_id}, single=True)
         if credits and credits["used_cents"] >= credits["total_cents"]:
-            return await reply_message("API credits exhausted. Add your own API key or upgrade.")
+            await send_twilio_message(from_number, "API credits exhausted. Add your own API key or upgrade.", from_number=to_number)
+            return Response(content="<Response></Response>", media_type="application/xml")
 
     # Record inbound message
     await db.insert("messages", {
@@ -148,49 +142,76 @@ async def twilio_whatsapp(request: Request) -> Response:
             "outbound_count": 0,
         })
 
-    # Call Openclaw container with conversation history
-    host_ip = settings.host_server_ip
-    port = assistant["port"]
-    gateway_token = decrypt(assistant["gateway_token_encrypted"])
-
-    # Get conversation history (includes the message we just inserted)
-    conversation = await get_conversation_history(user_id, limit=10)
-    logger.info(f"Conversation history: {len(conversation)} messages")
-
-    try:
-        reply = await call_openclaw(host_ip, port, gateway_token, conversation)
-    except Exception as e:
-        logger.error(f"Openclaw error: {e}")
-        reply = "Sorry, I encountered an error. Please try again."
-
-    # Record outbound message
-    await db.insert("messages", {
-        "user_id": user_id,
-        "direction": "OUTBOUND",
-        "body": reply,
-    })
-
-    # Update outbound usage
-    usage = await db.select("usage_daily", filters={"user_id": user_id, "date": today}, single=True)
-    await db.update(
-        "usage_daily",
-        {"outbound_count": usage["outbound_count"] + 1},
-        {"user_id": user_id, "date": today},
+    # Process message and send reply asynchronously via REST API (no timeout!)
+    asyncio.create_task(
+        _process_whatsapp_reply(user_id, from_number, to_number, api_key, today)
     )
 
-    # Deduct credits (rough estimate: $0.003 per message pair)
-    if not api_key:
-        credits = await db.select("user_credits", filters={"user_id": user_id}, single=True)
-        if credits:
+    # Return empty TwiML immediately
+    logger.info("Returning empty TwiML, reply will be sent via REST API")
+    return Response(content="<Response></Response>", media_type="application/xml")
+
+
+async def _process_whatsapp_reply(
+    user_id: str,
+    to_number: str,
+    from_number: str,
+    api_key: dict | None,
+    today: str,
+) -> None:
+    """Process WhatsApp message and send reply via Twilio REST API.
+
+    Runs as a background task so the webhook returns immediately.
+    """
+    try:
+        # Get assistant info
+        assistant = await db.select("assistants", filters={"user_id": user_id}, single=True)
+        host_ip = settings.host_server_ip
+        port = assistant["port"]
+        gateway_token = decrypt(assistant["gateway_token_encrypted"])
+
+        # Get conversation history (includes the message we just inserted)
+        conversation = await get_conversation_history(user_id, limit=20)
+        logger.info(f"Conversation history: {len(conversation)} messages")
+
+        try:
+            reply = await call_openclaw(host_ip, port, gateway_token, conversation)
+        except Exception as e:
+            logger.error(f"Openclaw error: {e}")
+            reply = "Sorry, I encountered an error. Please try again."
+
+        # Record outbound message
+        await db.insert("messages", {
+            "user_id": user_id,
+            "direction": "OUTBOUND",
+            "body": reply,
+        })
+
+        # Update outbound usage
+        usage = await db.select("usage_daily", filters={"user_id": user_id, "date": today}, single=True)
+        if usage:
             await db.update(
-                "user_credits",
-                {"used_cents": credits["used_cents"] + 1, "updated_at": datetime.utcnow().isoformat()},
-                {"user_id": user_id},
+                "usage_daily",
+                {"outbound_count": usage["outbound_count"] + 1},
+                {"user_id": user_id, "date": today},
             )
 
-    # Send reply (TwiML for sandbox, REST API for production)
-    logger.info("Sending reply via TwiML inline")
-    return await reply_message(reply)
+        # Deduct credits (rough estimate: $0.003 per message pair)
+        if not api_key:
+            credits = await db.select("user_credits", filters={"user_id": user_id}, single=True)
+            if credits:
+                await db.update(
+                    "user_credits",
+                    {"used_cents": credits["used_cents"] + 1, "updated_at": datetime.utcnow().isoformat()},
+                    {"user_id": user_id},
+                )
+
+        # Send reply via Twilio REST API (no timeout!)
+        logger.info(f"Sending reply via REST API to {to_number}")
+        await send_twilio_message(to_number, reply, from_number=from_number)
+
+    except Exception as e:
+        logger.error(f"Error processing WhatsApp reply for user {user_id}: {e}")
 
 
 async def call_openclaw(host_ip: str, port: int, token: str, messages: list[dict]) -> str:
