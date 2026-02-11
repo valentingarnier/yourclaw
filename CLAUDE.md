@@ -53,15 +53,15 @@ User WhatsApp → Twilio → POST /api/v1/webhooks/twilio/whatsapp (FastAPI)
   → parse Form data: From, Body, MessageSid, ProfileName, NumMedia, MediaUrl0
   → lookup user by From phone (strip "whatsapp:" prefix, match E.164)
   → check assistant status == READY
-  → check rate limits (msg/min) + daily caps (msg/day) [TODO: implement]
-  → POST /v1/chat/completions on user container (host_ip:user_port)
+  → check rate limits (msg/day) + credits
+  → record inbound message + update usage
+  → return empty TwiML immediately: <Response></Response>
+  → (background task) POST /v1/chat/completions on user container
     → Authorization: Bearer <gateway_token>
-    → body: { "model": "openclaw:main", "messages": [{"role": "user", "content": "<body>"}] }
+    → body: { "model": "openclaw:main", "messages": [last 20 messages] }
   → get response (response.choices[0].message.content)
-  → send reply via Twilio REST API (client.messages.create)
-  → record in messages table (both inbound + outbound)
-  → increment usage_daily counters
-  → return empty TwiML: <Response></Response>
+  → record outbound message + deduct credits
+  → send reply via Twilio REST API (client.messages.create, no timeout)
 ```
 
 ### Telegram Message
@@ -84,8 +84,8 @@ User Telegram → Bot API → POST /api/v1/webhooks/telegram (FastAPI)
   → increment usage_daily counters
 ```
 
-**Key advantage over WhatsApp**: No timeout! Telegram replies are sent asynchronously via Bot API.
-This allows slower models (Opus, GPT-4o), browser automation (30-60s), and longer context.
+**Both channels are async**: WhatsApp replies sent via REST API in background task, Telegram via Bot API.
+Both support slower models (Opus, GPT-4o), browser automation (30-60s), and full 20-message context.
 
 ### Provisioning
 ```
@@ -1044,33 +1044,30 @@ pnpm dev  # port 3000 — serves /, /features, /pricing, /login, /dashboard, etc
   - [x] DELETE /assistants now keeps container_id (was clearing it immediately)
   - [x] Worker cleanup_deleted_assistants() properly stops containers with status=NONE
 
-### WhatsApp: Reply Mode (IMPORTANT)
+### WhatsApp: Reply Mode
 
-**Current status:** Production number `+15557589499` active. Inbound works. **Outbound REST API blocked** (Meta Business Account not fully approved for sending). Using TwiML inline as workaround.
+**Current status:** Production number `+15557589499` active. Inbound + outbound working via REST API.
 
-**Current mode: TwiML inline (temporary):**
-- ALL replies use TwiML inline response (synchronous)
-- Works for both sandbox and production numbers
-- **15-second timeout**: if OpenClaw takes longer, reply is dropped
-- Conversation history reduced to 10 messages to speed up responses
-- Only fast models available (Sonnet 4.5, Haiku 4.5). Big models marked "Coming Soon"
+**Current mode: REST API (async, no timeout):**
+- Webhook returns empty `<Response></Response>` immediately
+- Reply processed in background via `asyncio.create_task(_process_whatsapp_reply(...))`
+- Reply sent asynchronously via `send_twilio_message()` (Twilio REST API)
+- **No timeout** — supports slow models (Opus, GPT-4o), browser automation (30-60s)
+- Conversation history: 20 messages (10 exchanges)
+- All 7 models available (no "Coming Soon" restrictions)
+- Template notifications working (send_ready_notification)
 
 **How it works in code (`webhooks.py`):**
 ```python
-# Current: TwiML inline for all replies
-async def reply_message(msg: str) -> Response:
-    escaped = html.escape(msg)
-    return Response(content=f"<Response><Message>{escaped}</Message></Response>", ...)
-```
+# Webhook handler returns immediately
+asyncio.create_task(_process_whatsapp_reply(user_id, from_number, to_number, api_key, today))
+return Response(content="<Response></Response>", media_type="application/xml")
 
-**When Meta fully approves outbound sending (REST API):**
-1. In `webhooks.py`, restore the REST API mode in `reply_message()`:
-   - Return empty TwiML immediately: `<Response></Response>`
-   - Send actual reply asynchronously via `send_twilio_message()` (no timeout)
-2. Remove `comingSoon: true` from big models in `frontend/src/lib/api.ts`
-3. Increase conversation history back to 20 messages in `webhooks.py`
-4. Template notifications (`send_ready_notification`) will also start working
-5. Test end-to-end: send message → verify reply arrives via REST API
+# Background task: call OpenClaw, then send reply via REST API
+async def _process_whatsapp_reply(...):
+    reply = await call_openclaw(host_ip, port, gateway_token, conversation)
+    await send_twilio_message(to_number, reply, from_number=from_number)
+```
 
 **Twilio error reference:**
 - **63007**: "Could not find Channel with specified From address" → outbound not approved
@@ -1138,22 +1135,10 @@ async def send_ready_notification(user_id: str) -> None:
    - Fix: Go to console.anthropic.com → Settings → Limits, or contact Anthropic sales
    - Adding a credit card / depositing funds usually auto-upgrades tier
    - Target: Tier 2+ (200k-2M+ tokens/min)
-2. **Switch WhatsApp replies to REST API** (BLOCKED — waiting for Meta Business Account full approval):
-   - Currently using TwiML inline responses (synchronous, ~15s timeout)
-   - Once Meta approves outbound sending, switch to async REST API (no timeout)
-   - Code change: in `webhooks.py`, uncomment REST API mode in `reply_message()`
-   - Test: send a message and verify reply arrives via REST API (not TwiML)
-   - Remove the TwiML fallback once confirmed working
-   - Template messages (`send_ready_notification`) will also start working
-   - Browser automation will work end-to-end (needs 30-60s for multi-step tasks)
-3. **Enable big models** (BLOCKED — TwiML 15s timeout):
-   - Opus 4.5, GPT-4o, Gemini 2.0 Flash marked "Coming Soon" in dashboard
-   - These models are too slow for TwiML inline (>15s responses)
-   - Once REST API is active (no timeout), remove `comingSoon` flag from models in `api.ts`
-4. **Rate Limits** (TODO):
+2. **Rate Limits** (TODO):
    - [ ] Implement daily message rate limits (e.g., 100 msg/day per user)
    - [ ] Implement per-minute rate limits (e.g., 5 msg/min)
-5. **Post-launch: Google Integrations** (PAUSED - not production ready):
+3. **Post-launch: Google Integrations** (PAUSED - not production ready):
    - [x] Backend complete: OAuth flow, token storage, MCP config injection
    - [x] Frontend complete: Connected Services UI (currently hidden)
    - [ ] Test with real Google OAuth credentials
@@ -1178,11 +1163,9 @@ async def send_ready_notification(user_id: str) -> None:
   - **Fix 3**: `--executable-path /usr/bin/chromium` added to Playwright MCP args — the env vars (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`) were ignored by the MCP server, it needs the CLI flag.
   - **Fix 4**: Updated CLAUDE.md system instructions in workspace to list all `playwright_browser_*` tools.
   - **Verified**: Tested directly on container — example.com and booking.com both return full page content via Playwright MCP.
-  - **Remaining limitation**: Browser automation needs 30-60s for multi-step tasks, incompatible with TwiML 15s timeout. Works via direct API, will work on WhatsApp once REST API mode is enabled.
+  - Browser automation works end-to-end (REST API mode, no timeout)
 - [x] **TwiML fallback + production fixes** (2026-02-09):
-  - Switched to TwiML inline responses (Meta outbound not approved yet)
-  - Reduced conversation history from 20 to 10 messages (faster responses within 15s TwiML timeout)
-  - Big models (Opus 4.5, GPT-4o, Gemini) marked "Coming Soon" (too slow for TwiML)
+  - Originally switched to TwiML inline (Meta outbound not approved). Now replaced with REST API mode (2026-02-11).
   - Only Sonnet 4.5 and Haiku 4.5 selectable for now
   - Template notification made best-effort (won't fail provisioning job)
   - SSH key parsing: auto-detect Ed25519/RSA/ECDSA (was hardcoded RSA)
@@ -1268,14 +1251,28 @@ async def send_ready_notification(user_id: str) -> None:
   - CTA footer: "$20/month · 48h free trial · $10 in credits · Cancel anytime"
   - Header pushed down (`top-10`) to sit below banner (`top-0 z-50`)
 
-- [x] **Welcome email on subscription** (2026-02-11):
-  - `backend/app/services/email_service.py` — HTML template with brand colors (emerald→cyan gradient)
-  - Sent from `Valentin from YourClaw <hello@yourclaw.dev>` via Resend
-  - Triggered in `handle_checkout_completed()` (best-effort, won't block checkout)
-  - Fetches user email + first name from Supabase auth, channel from user_phones
-  - Content: welcome, checklist of features, "what happens next" steps, dashboard CTA
-  - Test endpoint: `POST /api/v1/test/welcome-email?email=...&first_name=...&channel=...`
+- [x] **Welcome + subscription emails** (2026-02-11):
+  - **Welcome email** — sent on sign-up (when user sets channel in `POST /users/me/channel`)
+    - Lighter tone: "Welcome to YourClaw, here's what your assistant can do"
+    - Features list: web browsing, code execution, memory, all tools
+    - CTA: "Go to Dashboard" to subscribe
+  - **Subscription email** — sent on checkout (`handle_checkout_completed`)
+    - "You're all set! Thank you for your trust" + provisioning steps
+    - Checklist: dedicated server, 48h trial, $10 credits, 24/7 availability
+  - Resend contact created on sign-up (first name, last name, email)
+  - Internal notification to hello@yourclaw.dev on new subscriber
+  - All emails from `Valentin from YourClaw <hello@yourclaw.dev>` via Resend
   - Added `resend>=2.0.0` to backend deps, `resend_api_key` to config
+- [x] **WhatsApp REST API mode** (2026-02-11):
+  - Switched from TwiML inline to async REST API (no more 15s timeout)
+  - Webhook returns empty `<Response></Response>` immediately
+  - Reply processed in background via `asyncio.create_task(_process_whatsapp_reply(...))`
+  - Conversation history restored to 20 messages (was 10)
+  - All 7 models enabled (removed `comingSoon` from Opus 4.5)
+  - Browser automation now works end-to-end on WhatsApp (30-60s tasks)
+  - Template notifications working via REST API
+- [x] **Launch offer timer extended** (2026-02-11):
+  - Countdown banner: 96h from first visit (was 48h)
 - [x] **Subscription management UI** (2026-02-11):
   - New "Subscription" section in dashboard sidebar (CreditCardIcon)
   - Plan card: name, price ($20/month), status badge, next billing date
