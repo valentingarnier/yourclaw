@@ -2,6 +2,9 @@
 node_modules/
 .pnpm-store/
 
+# Test scripts with credentials
+scripts/
+
 # Next.js
 .next/
 out/
