@@ -365,7 +365,7 @@ function AssistantSection({
   const currentModelInfo = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
   const [editingChannel, setEditingChannel] = useState(false);
   const [newChannel, setNewChannel] = useState<"WHATSAPP" | "TELEGRAM">(
-    (user?.channel as "WHATSAPP" | "TELEGRAM") || "TELEGRAM"
+    (user?.channel as "WHATSAPP" | "TELEGRAM") || "WHATSAPP"
   );
   const [newPhone, setNewPhone] = useState(user?.phone || "");
   const [newTelegramUsername, setNewTelegramUsername] = useState(user?.telegram_username || "");

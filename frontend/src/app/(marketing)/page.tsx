@@ -92,7 +92,7 @@ export default function HomePage() {
 
 function HeroSection() {
   const [selectedModel, setSelectedModel] = useState<"claude" | "openai" | "gemini">("claude");
-  const [channel, setChannel] = useState<"WHATSAPP" | "TELEGRAM">("TELEGRAM");
+  const [channel, setChannel] = useState<"WHATSAPP" | "TELEGRAM">("WHATSAPP");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [telegramUsername, setTelegramUsername] = useState("");
   const [error, setError] = useState("");
