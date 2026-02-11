@@ -67,6 +67,149 @@ WELCOME_EMAIL_HTML = """
       color: #a3a3a3;
       margin: 0 0 16px 0;
     }}
+    .highlight {{
+      color: #ffffff;
+      font-weight: 500;
+    }}
+    .features {{
+      background: #18181b;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 24px 0;
+    }}
+    .features h2 {{
+      font-size: 14px;
+      font-weight: 600;
+      color: #737373;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 0 0 12px 0;
+    }}
+    .feature {{
+      font-size: 15px;
+      line-height: 1.6;
+      color: #d4d4d4;
+      padding: 4px 0;
+    }}
+    .feature-icon {{
+      color: #10B981;
+      font-weight: 700;
+      margin-right: 10px;
+    }}
+    .cta {{
+      display: inline-block;
+      background: linear-gradient(135deg, #10B981, #06B6D4);
+      color: #000000;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 12px 28px;
+      border-radius: 8px;
+      margin: 24px 0;
+    }}
+    .footer {{
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid #262626;
+      font-size: 13px;
+      color: #525252;
+      line-height: 1.5;
+    }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-row">
+      <div class="logo-icon">Y</div>
+      <div class="logo-text">YourClaw</div>
+    </div>
+
+    <h1>Welcome to YourClaw, {first_name}!</h1>
+
+    <p>Thanks for signing up. You're one step away from having your own AI assistant &mdash; powered by <span class="highlight">OpenClaw</span>, available right on {channel}.</p>
+
+    <div class="features">
+      <h2>What your assistant can do</h2>
+      <div class="feature"><span class="feature-icon">&#9679;</span> Browse the web and fetch live information</div>
+      <div class="feature"><span class="feature-icon">&#9679;</span> Execute code, create files, automate tasks</div>
+      <div class="feature"><span class="feature-icon">&#9679;</span> Remember context across conversations</div>
+      <div class="feature"><span class="feature-icon">&#9679;</span> Use all OpenClaw tools &mdash; no restrictions</div>
+    </div>
+
+    <p>To get started, head to your dashboard and subscribe. Your assistant will be ready in under a minute.</p>
+
+    <a href="{dashboard_url}" class="cta">Go to Dashboard</a>
+
+    <div class="footer">
+      <p>Questions? Just reply to this email &mdash; we read everything.</p>
+      <p>&mdash; Valentin, YourClaw</p>
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+
+SUBSCRIPTION_EMAIL_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {{
+      margin: 0;
+      padding: 0;
+      background-color: #09090b;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #e5e5e5;
+    }}
+    .container {{
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }}
+    .logo-row {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }}
+    .logo-icon {{
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #10B981, #06B6D4);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: #000000;
+    }}
+    .logo-text {{
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }}
+    h1 {{
+      font-size: 22px;
+      font-weight: 600;
+      color: #ffffff;
+      margin: 0 0 16px 0;
+      line-height: 1.3;
+    }}
+    p {{
+      font-size: 15px;
+      line-height: 1.6;
+      color: #a3a3a3;
+      margin: 0 0 16px 0;
+    }}
+    .highlight {{
+      color: #ffffff;
+      font-weight: 500;
+    }}
     .checklist {{
       margin: 24px 0;
       padding: 0;
@@ -136,29 +279,29 @@ WELCOME_EMAIL_HTML = """
       <div class="logo-text">YourClaw</div>
     </div>
 
-    <h1>Welcome, {first_name}!</h1>
+    <h1>You're all set, {first_name}!</h1>
 
-    <p>You're in. Your OpenClaw assistant is being set up right now &mdash; it usually takes less than a minute.</p>
+    <p>Thank you for your trust. Your subscription is active and your personal OpenClaw assistant is being set up right now &mdash; it usually takes less than a minute.</p>
 
     <ul class="checklist">
-      <li><span class="check">&#10003;</span>Your own dedicated AI assistant</li>
-      <li><span class="check">&#10003;</span>Web browsing, code execution, file creation</li>
-      <li><span class="check">&#10003;</span>48h free trial + $10 in AI credits</li>
-      <li><span class="check">&#10003;</span>All OpenClaw tools, no restrictions</li>
+      <li><span class="check">&#10003;</span> Your own dedicated AI server</li>
+      <li><span class="check">&#10003;</span> 48h free trial + <span class="highlight">$10 in AI credits</span></li>
+      <li><span class="check">&#10003;</span> All tools unlocked &mdash; web, code, files, browser</li>
+      <li><span class="check">&#10003;</span> Available 24/7 on {channel}</li>
     </ul>
 
     <div class="steps">
       <h2>What happens next</h2>
       <div class="step"><span class="step-number">1.</span> We're provisioning your assistant right now</div>
-      <div class="step"><span class="step-number">2.</span> Head to your dashboard to check the status</div>
-      <div class="step"><span class="step-number">3.</span> Once ready, send a message on {channel} to start chatting</div>
+      <div class="step"><span class="step-number">2.</span> You'll get a notification on {channel} when it's ready</div>
+      <div class="step"><span class="step-number">3.</span> Just send a message to start chatting</div>
     </div>
 
     <a href="{dashboard_url}" class="cta">Go to Dashboard</a>
 
     <div class="footer">
-      <p>Questions? Just reply to this email &mdash; we read everything.</p>
-      <p>&mdash; The YourClaw Team</p>
+      <p>This is the beginning of something great. If you ever need anything, just reply to this email &mdash; I read every single one.</p>
+      <p>&mdash; Valentin, YourClaw</p>
     </div>
   </div>
 </body>
@@ -343,7 +486,7 @@ async def send_cancellation_email(email: str, first_name: str, channel: str) -> 
 
 
 async def send_welcome_email(email: str, first_name: str, channel: str) -> None:
-    """Send welcome email after successful subscription.
+    """Send welcome email when user signs up (sets their channel).
 
     Args:
         email: User's email address
@@ -369,13 +512,47 @@ async def send_welcome_email(email: str, first_name: str, channel: str) -> None:
         resend.Emails.send({
             "from": "Valentin from YourClaw <hello@yourclaw.dev>",
             "to": [email],
-            "subject": "Welcome to YourClaw — your assistant is on the way!",
+            "subject": f"Welcome to YourClaw, {first_name or 'there'}!",
             "html": html,
         })
         logger.info(f"Welcome email sent to {email}")
     except Exception as e:
-        # Best-effort — don't fail the checkout flow
         logger.error(f"Failed to send welcome email to {email}: {e}")
+
+
+async def send_subscription_email(email: str, first_name: str, channel: str) -> None:
+    """Send thank-you email after successful subscription checkout.
+
+    Args:
+        email: User's email address
+        first_name: User's first name (from Google profile)
+        channel: Messaging channel (WhatsApp or Telegram)
+    """
+    if not settings.resend_api_key:
+        logger.warning("RESEND_API_KEY not set, skipping subscription email")
+        return
+
+    resend.api_key = settings.resend_api_key
+
+    channel_display = "WhatsApp" if channel == "WHATSAPP" else "Telegram"
+    dashboard_url = f"{settings.app_url}/dashboard"
+
+    html = SUBSCRIPTION_EMAIL_HTML.format(
+        first_name=first_name or "there",
+        channel=channel_display,
+        dashboard_url=dashboard_url,
+    )
+
+    try:
+        resend.Emails.send({
+            "from": "Valentin from YourClaw <hello@yourclaw.dev>",
+            "to": [email],
+            "subject": "You're all set — your assistant is on the way!",
+            "html": html,
+        })
+        logger.info(f"Subscription email sent to {email}")
+    except Exception as e:
+        logger.error(f"Failed to send subscription email to {email}: {e}")
 
 
 async def add_resend_contact(email: str, first_name: str, last_name: str = "") -> None:

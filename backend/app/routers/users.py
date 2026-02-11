@@ -1,10 +1,16 @@
+import logging
 import uuid
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import db
 from app.schemas import ChannelInput, PhoneInput, UserProfile
+from app.services.email_service import add_resend_contact, send_welcome_email
+
+logger = logging.getLogger("yourclaw.users")
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -29,9 +35,6 @@ async def get_me(user_id: uuid.UUID = Depends(get_current_user)) -> UserProfile:
     assistant_status = assistant_row["status"] if assistant_row else None
 
     # Get user email from Supabase auth
-    import httpx
-    from app.config import settings
-
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
@@ -82,6 +85,10 @@ async def set_channel(
 ) -> UserProfile:
     """Set or update user's messaging channel (WhatsApp or Telegram)."""
 
+    # Check if this is first-time setup (no existing record = new sign-up)
+    existing = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
+    is_new_user = existing is None
+
     # Normalize telegram username (strip @ prefix, lowercase)
     tg_username = body.telegram_username
     if tg_username and tg_username.startswith("@"):
@@ -98,4 +105,31 @@ async def set_channel(
     }
 
     await db.upsert("user_phones", data, on_conflict="user_id")
+
+    # Send welcome email + add Resend contact on first sign-up (best-effort)
+    if is_new_user:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
+                    headers={
+                        "apikey": settings.supabase_service_role_key,
+                        "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                    },
+                )
+                if resp.status_code == 200:
+                    user_data = resp.json()
+                    email = user_data.get("email", "")
+                    meta = user_data.get("user_metadata", {})
+                    full_name = meta.get("name", "")
+                    first_name = full_name.split(" ")[0] if full_name else ""
+                    name_parts = full_name.split(" ", 1) if full_name else []
+                    last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+                    if email:
+                        await send_welcome_email(email, first_name, body.channel)
+                        await add_resend_contact(email, first_name, last_name)
+        except Exception as e:
+            logger.error(f"Failed to send welcome email for user {user_id}: {e}")
+
     return await get_me(user_id)
