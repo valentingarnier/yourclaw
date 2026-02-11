@@ -57,6 +57,22 @@ async def health() -> HealthResponse:
     return HealthResponse(status="ok", version="0.1.0")
 
 
+@app.post("/api/v1/test/welcome-email")
+async def test_welcome_email(
+    email: str = "test@example.com",
+    first_name: str = "Valentin",
+    channel: str = "WHATSAPP",
+) -> dict:
+    """Test endpoint to preview/send the welcome email.
+
+    Usage: POST /api/v1/test/welcome-email?email=you@example.com&first_name=John&channel=TELEGRAM
+    """
+    from app.services.email_service import send_welcome_email
+
+    await send_welcome_email(email, first_name, channel)
+    return {"status": "sent", "to": email, "first_name": first_name, "channel": channel}
+
+
 # Register routers
 from app.routers import api_keys, assistants, checkout, oauth, usage, users, webhooks
 

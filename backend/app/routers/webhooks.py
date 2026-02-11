@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.config import settings
 from app.database import db
+from app.services.email_service import send_welcome_email
 from app.services.encryption import decrypt
 
 logger = logging.getLogger("yourclaw.webhooks")
@@ -565,6 +566,31 @@ async def handle_checkout_completed(session: dict) -> None:
     )
 
     logger.info(f"Checkout completed for user {user_id}")
+
+    # Send welcome email (best-effort)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
+                headers={
+                    "apikey": settings.supabase_service_role_key,
+                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                },
+            )
+            if resp.status_code == 200:
+                user_data = resp.json()
+                email = user_data.get("email", "")
+                # Extract first name from Google metadata
+                meta = user_data.get("user_metadata", {})
+                first_name = meta.get("name", "").split(" ")[0] if meta.get("name") else ""
+                # Get channel
+                phone_row = await db.select("user_phones", filters={"user_id": user_id}, single=True)
+                channel = phone_row["channel"] if phone_row else "WHATSAPP"
+
+                if email:
+                    await send_welcome_email(email, first_name, channel)
+    except Exception as e:
+        logger.error(f"Failed to send welcome email for user {user_id}: {e}")
 
 
 async def handle_invoice_paid(invoice: dict) -> None:

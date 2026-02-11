@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     telegram_bot_username: str = "Yourclawdev_bot"  # Bot username (without @)
     telegram_webhook_secret: str = ""  # Secret for webhook validation
 
+    # Email (Resend)
+    resend_api_key: str = ""
+
     # Mock Mode
     mock_twilio: bool = False
     mock_containers: bool = False
