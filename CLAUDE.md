@@ -24,7 +24,7 @@ Positioning: "The easiest way to run OpenClaw. Fully managed, on WhatsApp & Tele
 
 ## User Journey (End to End)
 ```
-1. User lands on yourclaw.com → sees landing page with demo + CTA
+1. User lands on yourclaw.dev → sees landing page with demo + CTA
 2. User clicks "Get Started" → goes to /login
 3. User signs in with Google (Supabase Auth)
 4. User is redirected to /onboarding (if no channel set)
