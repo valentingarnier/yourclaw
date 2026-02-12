@@ -135,6 +135,9 @@ export default function DashboardPage() {
       if (message.includes("subscription") || message.includes("402")) {
         try {
           const { checkout_url } = await api.createCheckout();
+          if (typeof window !== "undefined" && window.fbq) {
+            window.fbq("track", "InitiateCheckout");
+          }
           window.location.href = checkout_url;
           return;
         } catch {

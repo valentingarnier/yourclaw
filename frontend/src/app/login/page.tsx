@@ -7,6 +7,9 @@ export default function LoginPage() {
   const supabase = createClient();
 
   const handleGoogleLogin = async () => {
+    if (typeof window !== "undefined" && window.fbq) {
+      window.fbq("track", "Lead");
+    }
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
