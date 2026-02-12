@@ -255,7 +255,7 @@ function HeroSection() {
               </div>
               <div className="w-px h-10 bg-white/10" />
               <div className="text-center">
-                <div className="text-2xl font-bold text-white">$20</div>
+                <div className="text-2xl font-bold text-white">$29</div>
                 <div className="text-sm text-zinc-500">/month</div>
               </div>
               <div className="w-px h-10 bg-white/10" />
@@ -945,7 +945,7 @@ function PricingSection() {
 
             <div className="text-center mb-8">
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold text-white">$20</span>
+                <span className="text-5xl font-bold text-white">$29</span>
                 <span className="text-xl text-zinc-500">/month</span>
               </div>
               <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -1082,7 +1082,7 @@ function CTASection() {
               <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <p className="mt-4 text-sm text-zinc-500">
-              $20/month • 48h free trial • $10 in credits • Cancel anytime
+              $29/month • 48h free trial • $10 in credits • Cancel anytime
             </p>
           </div>
         </div>
