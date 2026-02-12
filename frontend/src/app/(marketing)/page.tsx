@@ -239,7 +239,7 @@ function HeroSection() {
 
             {/* Subheadline */}
             <p className="text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0 mb-8 animate-reveal" style={{ animationDelay: "0.2s" }}>
-              Get your own OpenClaw instance — fully managed, always on. Research, write, browse the web, run code. Just text it. No servers, no terminal, no setup.
+              Get your own OpenClaw instance — fully managed, always on. Send emails, check flights, manage meetings, set up ads. All from WhatsApp or Telegram.
             </p>
 
             {/* Stats */}
@@ -525,19 +525,19 @@ function TimeComparisonSection() {
 function UseCasesSection() {
   const categories = [
     {
-      label: "Work",
+      label: "Automate",
       color: "emerald",
-      items: ["Draft emails", "Summarize docs", "Research topics", "Create slides", "Track tasks"],
+      items: ["Send emails from WhatsApp", "Reschedule meetings", "Set up Facebook ads", "Monitor competitor prices", "Track your shipments"],
     },
     {
-      label: "Life",
+      label: "Research",
       color: "cyan",
-      items: ["Plan trips", "Find recipes", "Compare prices", "Track expenses", "Book hotels"],
+      items: ["Find the best flight deals", "Compare SaaS tools", "Analyze a company", "Get real-time stock data", "Scout rental apartments"],
     },
     {
       label: "Create",
       color: "purple",
-      items: ["Write copy", "Brainstorm", "Draft posts", "Translate text", "Edit content"],
+      items: ["Generate social media visuals", "Build a spreadsheet from data", "Draft a contract", "Create a pitch deck outline", "Edit product photos"],
     },
   ];
 
@@ -617,26 +617,26 @@ function FeaturesSection() {
   const features = [
     {
       icon: SparklesIcon,
-      title: "Full AI power",
-      description: "Powered by Claude, GPT, or Gemini — the most capable AI models. Not a simple chatbot — a true assistant.",
+      title: "Takes real actions",
+      description: "Send emails, check flights, set up ads, manage calendars — not just chat. Your assistant actually does things for you.",
       gradient: "from-emerald-500 to-cyan-500",
     },
     {
       icon: ClockIcon,
-      title: "Always on",
-      description: "Your assistant runs 24/7 on secure cloud servers. Ask anything, anytime — it never sleeps.",
+      title: "Always on, always ready",
+      description: "Running 24/7 on your own dedicated server. Text it at 3am to book a hotel or cancel a meeting — it never sleeps.",
       gradient: "from-cyan-500 to-blue-500",
     },
     {
       icon: BoltIcon,
-      title: "Instant setup",
-      description: "Sign up, choose WhatsApp or Telegram, done. No VPS, no terminal, no DevOps knowledge required.",
+      title: "Works where you are",
+      description: "Lives in WhatsApp or Telegram. No new app, no browser tab. Just text like you would a human assistant.",
       gradient: "from-purple-500 to-pink-500",
     },
     {
       icon: ShieldCheckIcon,
-      title: "Private & secure",
-      description: "Your data stays yours. Encrypted at rest, never sold, never used to train models.",
+      title: "Your own private instance",
+      description: "Each user gets a dedicated AI server. Your data is isolated, encrypted, and never shared with anyone.",
       gradient: "from-orange-500 to-red-500",
     },
   ];
@@ -650,7 +650,7 @@ function FeaturesSection() {
             <span className="gradient-text">A real assistant.</span>
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            YourClaw can browse the web, run code, create files, and take action — things regular chatbots can't do.
+            YourClaw doesn&apos;t just answer questions — it takes action. Browse the web, send emails, manage files, and automate tasks from your chat.
           </p>
         </div>
 
@@ -689,16 +689,16 @@ function PhoneDemoSection() {
               <span className="gradient-text">without leaving your chat</span>
             </h2>
             <p className="text-lg text-zinc-400 mb-8">
-              Just text your assistant like you&apos;d text a friend on WhatsApp or Telegram.
-              Research, analyze, write, plan — all through natural conversation.
+              Just text your assistant like you&apos;d text a friend.
+              It browses the web, takes actions, and gets things done — all from your chat.
             </p>
 
             <div className="space-y-4">
               {[
-                "Research any topic in depth",
-                "Write emails, reports, and content",
-                "Analyze documents and data",
-                "Plan projects and track tasks",
+                "\"Check my inbox and summarize important emails\"",
+                "\"Find me a flight to NYC under $300 next week\"",
+                "\"Send a follow-up email to the client from yesterday\"",
+                "\"Set up a Facebook ad for my new product\"",
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -919,11 +919,11 @@ function HowItWorks() {
 function PricingSection() {
   const features = [
     "Unlimited messages",
-    "Web browsing & research",
-    "Your own personal server",
-    "File creation & analysis",
+    "Web browsing & real actions",
+    "Your own dedicated server",
+    "Email, calendar & file management",
     "24/7 availability",
-    "Priority support",
+    "All AI models (Claude, GPT, Gemini)",
   ];
 
   return (
@@ -990,11 +990,11 @@ function FAQSection() {
   const faqs = [
     {
       question: "What is YourClaw?",
-      answer: "YourClaw gives you a personal AI assistant on WhatsApp or Telegram. Powered by OpenClaw — a powerful open-source AI agent framework — it can research, write, analyze, code, and help with any task. All through simple chat.",
+      answer: "YourClaw gives you a personal AI assistant on WhatsApp or Telegram. Powered by OpenClaw — a powerful open-source AI agent framework — it can send emails, browse the web, manage files, automate tasks, and much more. All through simple chat.",
     },
     {
       question: "How is this different from ChatGPT?",
-      answer: "YourClaw is a full AI agent, not just a chatbot. It can browse the web, run code, create files, and take real actions. Plus, it&apos;s on WhatsApp or Telegram — no app switching, no browser tabs. Just text.",
+      answer: "ChatGPT answers questions. YourClaw takes action. It can browse the web, send emails, manage files, check flights, set up ads — real tasks, not just conversation. Plus it lives in WhatsApp or Telegram, no app switching needed.",
     },
     {
       question: "Do I need to download an app?",
@@ -1006,7 +1006,7 @@ function FAQSection() {
     },
     {
       question: "What can the assistant actually do?",
-      answer: "Research topics online, write content and emails, analyze documents, run code, create files, compare products, summarize long texts, and much more. If you can describe it, it can probably do it.",
+      answer: "Send and check emails, find flights and hotels, set up social media ads, compare products and prices, manage files, generate images, draft contracts, monitor competitors, track shipments — and much more. If you can describe it, it can probably do it.",
     },
   ];
 
