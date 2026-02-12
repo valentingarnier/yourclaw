@@ -191,23 +191,28 @@ class InfraClient:
         mem_limit: str = "2g",
         cpus: float = 1.0,
         restart_policy: str = "unless-stopped",
+        group_add: list[int] | None = None,
     ) -> ContainerInfo:
         """Create and start a container on a specific worker."""
         worker = self._workers[worker_name]
         client = self._get_client(worker_name)
 
-        container = client.containers.run(
-            image=image,
-            name=name,
-            detach=True,
-            ports=ports or {},
-            environment=environment or {},
-            volumes=volumes or {},
-            network=network,
-            mem_limit=mem_limit,
-            nano_cpus=int(cpus * 1e9),
-            restart_policy={"Name": restart_policy},
-        )
+        kwargs: dict = {
+            "image": image,
+            "name": name,
+            "detach": True,
+            "ports": ports or {},
+            "environment": environment or {},
+            "volumes": volumes or {},
+            "network": network,
+            "mem_limit": mem_limit,
+            "nano_cpus": int(cpus * 1e9),
+            "restart_policy": {"Name": restart_policy},
+        }
+        if group_add:
+            kwargs["group_add"] = group_add
+
+        container = client.containers.run(**kwargs)
         logger.info(f"Created container {name} on {worker_name} ({worker.ip})")
         return self._container_to_info(container, worker)
 

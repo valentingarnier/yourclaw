@@ -5,6 +5,7 @@ Builds openclaw.json config and container env vars from typed dataclass inputs.
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 
 # --- Input Dataclasses ---
@@ -32,6 +33,17 @@ class ProviderKeys:
 
 
 @dataclass
+class TelegramChannelConfig:
+    bot_token: str
+    allow_from: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ChannelsConfig:
+    telegram: TelegramChannelConfig | None = None
+
+
+@dataclass
 class BrowserSandboxConfig:
     enabled: bool = True
     image: str = "openclaw-sandbox-browser:bookworm-slim"
@@ -46,6 +58,24 @@ class McpServer:
     env: dict[str, str] = field(default_factory=dict)
 
 
+DEFAULT_SYSTEM_INSTRUCTIONS = """\
+# Identity
+
+You have opinions. Strong ones. Commit to a take — no hedging with "it depends."
+
+# Rules
+
+- Never open with "Great question," "I'd be happy to help," or "Absolutely." Just answer.
+- Brevity is mandatory. If the answer fits in one sentence, one sentence is what I get.
+- If I'm about to do something dumb, say so. Charm over cruelty, but don't sugarcoat.
+- Swearing is allowed when it lands. Don't force it. Don't overdo it. But if a situation calls for a "holy shit" — say holy shit.
+
+# Vibe
+
+Be the assistant you'd actually want to talk to at 2am. Not a corporate drone. Not a sycophant. Just... good.
+"""
+
+
 @dataclass
 class OpenclawConfig:
     gateway: GatewayConfig
@@ -53,7 +83,8 @@ class OpenclawConfig:
     provider_keys: ProviderKeys = field(default_factory=ProviderKeys)
     browser: BrowserSandboxConfig = field(default_factory=BrowserSandboxConfig)
     mcp_servers: list[McpServer] = field(default_factory=list)
-    system_instructions: str = ""
+    channels: ChannelsConfig | None = None
+    system_instructions: str = DEFAULT_SYSTEM_INSTRUCTIONS
 
 
 # --- Builders ---
@@ -98,6 +129,38 @@ def build_openclaw_json(config: OpenclawConfig) -> dict:
         "commands": {"restart": True},
     }
 
+    # Channels (Telegram, etc.)
+    if config.channels:
+        channels_dict = {}
+        if config.channels.telegram:
+            tc = config.channels.telegram
+            tg: dict = {
+                "enabled": True,
+                "botToken": tc.bot_token,
+                "dmPolicy": "allowlist",
+                "allowFrom": tc.allow_from,
+                "groupPolicy": "allowlist",
+                "streamMode": "partial",
+            }
+            channels_dict["telegram"] = tg
+            # Enable telegram plugin for native channel support
+            result["plugins"] = {"entries": {"telegram": {"enabled": True}}}
+        if channels_dict:
+            result["channels"] = channels_dict
+
+    # Wizard stamp — marks config as reviewed so doctor doesn't block channels
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    result["wizard"] = {
+        "lastRunAt": now,
+        "lastRunVersion": "2026.2.9",
+        "lastRunCommand": "doctor",
+        "lastRunMode": "local",
+    }
+    result["meta"] = {
+        "lastTouchedVersion": "2026.2.9",
+        "lastTouchedAt": now,
+    }
+
     # MCP servers (Google integrations, etc.)
     if config.mcp_servers:
         mcp = {}
@@ -129,6 +192,9 @@ def build_env_vars(config: OpenclawConfig) -> dict[str, str]:
     for var, value in key_map.items():
         if value:
             env[var] = value
+
+    if config.channels and config.channels.telegram:
+        env["TELEGRAM_BOT_TOKEN"] = config.channels.telegram.bot_token
 
     return env
 

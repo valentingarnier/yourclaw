@@ -135,11 +135,11 @@ class ClawClient:
             self._infra.write_host_file(
                 worker_name,
                 n.workspace_dir,
-                "CLAUDE.md",
+                "SOUL.md",
                 config.system_instructions,
             )
 
-        # 4. Start gateway
+        # 4. Start gateway (group_add=[0] gives node user access to Docker socket)
         env_vars = build_env_vars(config)
         self._infra.create_container(
             worker_name=worker_name,
@@ -159,6 +159,7 @@ class ClawClient:
                 },
             },
             network=n.network,
+            group_add=[0],
         )
         logger.info(
             f"Provisioned claw {claw_id} for user {user_id} on {worker_name} port {port}"
