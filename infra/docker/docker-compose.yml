@@ -1,0 +1,39 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: yourclaw-openclaw:latest
+    container_name: yourclaw-gateway
+    ports:
+      - "18789:18789"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    volumes:
+      - gateway-config:/home/node/.openclaw
+      - gateway-workspace:/home/node/.openclaw/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - yourclaw
+    restart: unless-stopped
+    depends_on:
+      - browser
+
+  browser:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox-browser
+    image: openclaw-sandbox-browser:bookworm-slim
+    container_name: yourclaw-browser
+    networks:
+      - yourclaw
+    restart: unless-stopped
+
+networks:
+  yourclaw:
+
+volumes:
+  gateway-config:
+  gateway-workspace:
