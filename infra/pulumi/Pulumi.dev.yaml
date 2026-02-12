@@ -1,0 +1,5 @@
+config:
+  hcloud:token:
+    secure: AAABAIS7tpF0TDeL+R6ycq1YVIs8wUqw0UinZsQHh1gGdoKCaEzwhybpLu5G5uaAYbyKrlA/dw5hi31kkOkOjrzjpHTJGHYWcijDN8t6vWPHuwn3tDZutJHl5wbL5LW0
+  yourclaw-infra:sshPublicKey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN3AwwZjG9DMHNHsMjB9z5qNzBGKz3V/SlUMU+CoBP+j yourclaw
+  yourclaw-infra:vmCount: "1"
