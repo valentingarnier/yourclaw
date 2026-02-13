@@ -1,0 +1,44 @@
+hetzner_token: <set HCLOUD_TOKEN env var>
+cluster_name: yourclaw
+kubeconfig_path: ./kubeconfig
+k3s_version: v1.32.0+k3s1
+
+ssh:
+  port: 22
+  use_agent: false
+  public_key_path: ~/.ssh/yourclaw.pub
+  private_key_path: ~/.ssh/yourclaw
+
+addons:
+  traefik:
+    enabled: true
+
+masters_pool:
+  instance_type: cax11        # 2 vCPU, 4 GB RAM (ARM)
+  instance_count: 1           # 1 for dev, 3 for HA prod
+  location: fsn1
+
+worker_node_pools:
+  - name: agent
+    instance_type: cax21      # 4 vCPU, 8 GB RAM (ARM)
+    instance_count: 2
+    location: fsn1
+    labels:
+      - key: role
+        value: agent
+    autoscaling:
+      enabled: true
+      min_instances: 1
+      max_instances: 10
+
+  - name: browser
+    instance_type: cax21      # 4 vCPU, 8 GB RAM (ARM)
+    instance_count: 1
+    location: fsn1
+    labels:
+      - key: role
+        value: browser
+    autoscaling:
+      enabled: true
+      min_instances: 1
+      max_instances: 5
