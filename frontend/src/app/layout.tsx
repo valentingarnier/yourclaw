@@ -86,6 +86,9 @@ export default function RootLayout({
             fbq('track', 'PageView');
           `}
         </Script>
+      </head>
+      <body className="antialiased">
+        {children}
         <noscript>
           <img
             height="1"
@@ -94,9 +97,6 @@ export default function RootLayout({
             src="https://www.facebook.com/tr?id=528446605138135&ev=PageView&noscript=1"
           />
         </noscript>
-      </head>
-      <body className="antialiased">
-        {children}
       </body>
     </html>
   );
