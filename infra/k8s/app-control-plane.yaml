@@ -9,10 +9,13 @@ metadata:
   name: yourclaw-api
 rules:
 - apiGroups: [""]
-  resources: ["configmaps", "services", "pods"]
+  resources: ["configmaps", "secrets", "services", "persistentvolumeclaims", "pods"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 - apiGroups: ["apps"]
   resources: ["deployments"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["cilium.io"]
+  resources: ["ciliumnetworkpolicies"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -69,21 +72,16 @@ spec:
   ports:
   - port: 8000
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: yourclaw-api
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
 spec:
+  parentRefs:
+  - name: main-gateway
+  hostnames:
+  - "api.yourclaw.dev"
   rules:
-  - host: api.yourclaw.dev
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: yourclaw-api
-            port:
-              number: 8000
+  - backendRefs:
+    - name: yourclaw-api
+      port: 8000

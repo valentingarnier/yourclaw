@@ -44,13 +44,6 @@ class ChannelsConfig:
 
 
 @dataclass
-class BrowserSandboxConfig:
-    enabled: bool = True
-    image: str = "openclaw-sandbox-browser:bookworm-slim"
-    headless: bool = False
-
-
-@dataclass
 class McpServer:
     name: str
     command: str
@@ -81,7 +74,6 @@ class OpenclawConfig:
     gateway: GatewayConfig
     model: ModelConfig = field(default_factory=ModelConfig)
     provider_keys: ProviderKeys = field(default_factory=ProviderKeys)
-    browser: BrowserSandboxConfig = field(default_factory=BrowserSandboxConfig)
     mcp_servers: list[McpServer] = field(default_factory=list)
     channels: ChannelsConfig | None = None
     system_instructions: str = DEFAULT_SYSTEM_INSTRUCTIONS

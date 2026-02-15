@@ -1,0 +1,11 @@
+machine:
+  network:
+    interfaces:
+      - interface: eth1
+        dhcp: true
+  kubelet:
+    extraArgs:
+      cloud-provider: external
+cluster:
+  externalCloudProvider:
+    enabled: true

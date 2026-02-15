@@ -14,17 +14,13 @@ from backend_infra.services.config_builder import (
     ProviderKeys,
     TelegramChannelConfig,
 )
-from backend_infra.services.k8s_client import K8sClient
 
 app = FastAPI(title="YourClaw Control Plane")
 security = HTTPBearer()
 
 API_KEY = os.environ.get("API_KEY", "")
 
-
-def _get_claw() -> ClawClient:
-    k8s = K8sClient()
-    return ClawClient(k8s)
+claw = ClawClient()
 
 
 def verify_key(creds: HTTPAuthorizationCredentials = Security(security)) -> None:
@@ -53,6 +49,10 @@ class DeprovisionRequest(BaseModel):
     claw_id: str
 
 
+class DeprovisionUserRequest(BaseModel):
+    user_id: str
+
+
 # --- Routes ---
 
 
@@ -62,7 +62,7 @@ def health():
 
 
 @app.post("/provision", dependencies=[Depends(verify_key)])
-def provision(req: ProvisionRequest):
+async def provision(req: ProvisionRequest):
     channels = None
     if req.telegram_bot_token:
         channels = ChannelsConfig(
@@ -84,8 +84,7 @@ def provision(req: ProvisionRequest):
         channels=channels,
         system_instructions=req.system_instructions,
     )
-    claw = _get_claw()
-    result = claw.provision_claw(req.user_id, req.claw_id, config)
+    result = await claw.provision_claw(req.user_id, req.claw_id, config)
     return {
         "user_id": result.user_id,
         "claw_id": result.claw_id,
@@ -96,7 +95,12 @@ def provision(req: ProvisionRequest):
 
 
 @app.post("/deprovision", dependencies=[Depends(verify_key)])
-def deprovision(req: DeprovisionRequest):
-    claw = _get_claw()
-    claw.deprovision_claw(req.user_id, req.claw_id)
+async def deprovision(req: DeprovisionRequest):
+    await claw.deprovision_claw(req.user_id, req.claw_id)
     return {"status": "deprovisioned", "user_id": req.user_id, "claw_id": req.claw_id}
+
+
+@app.post("/deprovision-user", dependencies=[Depends(verify_key)])
+async def deprovision_user(req: DeprovisionUserRequest):
+    await claw.deprovision_user(req.user_id)
+    return {"status": "deprovisioned", "user_id": req.user_id}

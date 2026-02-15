@@ -1,14 +1,15 @@
-"""Provisioning test against a k3s cluster.
+"""Provisioning test against a Talos/k8s cluster.
 
 Prerequisites:
-    - k3s cluster running (hetzner-k3s create --config infra/cluster.yaml)
+    - Cluster running with Hetzner CSI + Cilium
     - KUBECONFIG pointing to the cluster kubeconfig
 
 Usage:
     cd backend-infra
-    KUBECONFIG=../infra/kubeconfig AI_GATEWAY_API_KEY=your-key uv run test/provision.py
+    KUBECONFIG=../infra/talos/kubeconfig AI_GATEWAY_API_KEY=your-key uv run test/provision.py
 """
 
+import asyncio
 import os
 import sys
 
@@ -21,14 +22,12 @@ from backend_infra.services.config_builder import (
     ProviderKeys,
     TelegramChannelConfig,
 )
-from backend_infra.services.k8s_client import K8sClient
 from dotenv import load_dotenv
 
 load_dotenv()
 
 USER_ID = "test-user-1"
 CLAW_ID = "claw-1"
-DATA_ROOT = "/data"
 
 # Read keys from env
 ai_gateway_key = os.environ.get("AI_GATEWAY_API_KEY", "")
@@ -42,7 +41,7 @@ if not ai_gateway_key and not anthropic_key:
     sys.exit(1)
 
 if not kubeconfig:
-    print("Set KUBECONFIG env var (e.g. KUBECONFIG=../infra/kubeconfig)")
+    print("Set KUBECONFIG env var (e.g. KUBECONFIG=../infra/talos/kubeconfig)")
     sys.exit(1)
 
 # Telegram channel (optional)
@@ -69,38 +68,43 @@ config = OpenclawConfig(
     channels=channels,
 )
 
-k8s = K8sClient(kubeconfig_path=kubeconfig)
-claw = ClawClient(k8s, data_root=DATA_ROOT)
+claw = ClawClient()
 
-# Clean up first
-print(f"Deprovisioning {USER_ID} (clean slate)...")
-claw.deprovision_user(USER_ID)
-print("Done!")
-print()
 
-# Provision
-print(f"Provisioning {USER_ID}/{CLAW_ID}...")
-result = claw.provision_claw(USER_ID, CLAW_ID, config)
-print(f"Done! {result}")
-print()
+async def main():
+    # Clean up first
+    print(f"Deprovisioning {USER_ID} (clean slate)...")
+    await claw.deprovision_user(USER_ID)
+    print("Done!")
+    print()
 
-# Check status
-status = claw.get_claw_status(USER_ID, CLAW_ID)
-print(f"Status: {status}")
-print()
+    # Provision
+    print(f"Provisioning {USER_ID}/{CLAW_ID}...")
+    result = await claw.provision_claw(USER_ID, CLAW_ID, config)
+    print(f"Done! {result}")
+    print()
 
-provider = "AI Gateway" if ai_gateway_key else "Anthropic direct"
-print(f"Provider:  {provider}")
-print(f"Service:   {result.service_dns}:{result.gateway_port}")
-print(f"Telegram:  {'allowlist ' + str(allow_from) if telegram_bot_token else 'disabled'}")
-print()
-print("Verify with:")
-print(f"  kubectl get deployment,service,configmap -l app=yourclaw,user-id={USER_ID}")
-print(f"  kubectl logs deployment/{result.service_name}")
-print()
-print("Port-forward to test locally:")
-print(f"  kubectl port-forward svc/{result.service_name} 19000:{result.gateway_port}")
-print(f'  curl http://localhost:19000/v1/chat/completions -H "Authorization: Bearer test-token-local" -H "Content-Type: application/json" -d \'{{"model":"openclaw:main","messages":[{{"role":"user","content":"say hello"}}]}}\'')
-print()
-print("To clean up:")
-print(f'  uv run python -c "from backend_infra.services.claw_client import ClawClient; from backend_infra.services.k8s_client import K8sClient; ClawClient(K8sClient(kubeconfig_path=\\"{kubeconfig}\\")).deprovision_user(\\"{USER_ID}\\")"')
+    # Check status
+    status = await claw.get_claw_status(USER_ID, CLAW_ID)
+    print(f"Status: {status}")
+    print()
+
+    provider = "AI Gateway" if ai_gateway_key else "Anthropic direct"
+    print(f"Provider:  {provider}")
+    print(f"Service:   {result.service_dns}:{result.gateway_port}")
+    print(f"Telegram:  {'allowlist ' + str(allow_from) if telegram_bot_token else 'disabled'}")
+    print()
+    print("Verify with:")
+    print(f"  kubectl get deploy,svc,cm,secret,pvc,ciliumnetworkpolicy -l claw-id={CLAW_ID}")
+    print(f"  kubectl get all -l user-id={USER_ID}")
+    print(f"  kubectl logs deployment/{result.service_name}")
+    print()
+    print("Port-forward to test locally:")
+    print(f"  kubectl port-forward svc/{result.service_name} 19000:{result.gateway_port}")
+    print(f'  curl http://localhost:19000/v1/chat/completions -H "Authorization: Bearer test-token-local" -H "Content-Type: application/json" -d \'{{"model":"openclaw:main","messages":[{{"role":"user","content":"say hello"}}]}}\'')
+    print()
+    print("To clean up:")
+    print(f"  kubectl delete all,cm,secret,pvc,ciliumnetworkpolicy -l user-id={USER_ID}")
+
+
+asyncio.run(main())

@@ -1,30 +1,52 @@
-"""High-level client for provisioning OpenClaw instances on k3s.
+"""High-level client for provisioning OpenClaw instances on Kubernetes.
 
-Orchestrates K8sClient to manage ConfigMaps, Deployments, and Services.
+Orchestrates kr8s to manage per-claw resources:
+    ConfigMap, Secret, PVC, Deployment, Service, CiliumNetworkPolicy
 
 Naming:
-    deployment:  claw-{user_id}-{claw_id}
-    service:     claw-{user_id}-{claw_id}   (ClusterIP, port 18789)
-    configmap:   claw-{user_id}-{claw_id}
-    host path:   /data/{user_id}/{claw_id}/workspace/
+    All resources:  claw-{user_id}-{claw_id}
+
+Labels (on every resource):
+    app: yourclaw
+    user-id: <user_id>
+    claw-id: <claw_id>
+
+Cleanup:
+    By claw:  kubectl delete all,cm,secret,pvc,ciliumnetworkpolicy -l claw-id=X
+    By user:  kubectl delete all,cm,secret,pvc,ciliumnetworkpolicy -l user-id=Y
 """
 
-import json
 import logging
 from dataclasses import dataclass
 
-from backend_infra.services.config_builder import (
-    OpenclawConfig,
-    build_env_vars,
-    build_openclaw_json,
+import kr8s
+from kr8s.asyncio.objects import (
+    ConfigMap,
+    Deployment,
+    Secret,
+    Service,
+    new_class,
 )
-from backend_infra.services.k8s_client import K8sClient
+
+from .config_builder import OpenclawConfig, build_env_vars, build_openclaw_json_str
 
 logger = logging.getLogger("yourclaw.claw")
+
+PersistentVolumeClaim = new_class("PersistentVolumeClaim", "v1", namespaced=True)
+CiliumNetworkPolicy = new_class("CiliumNetworkPolicy", "cilium.io/v2", namespaced=True, plural="ciliumnetworkpolicies")
 
 GATEWAY_IMAGE = "bitswired/yourclaw-openclaw:latest"
 GATEWAY_PORT = 18789
 IMAGE_PULL_SECRETS = ["dockerhub"]
+NAMESPACE = "default"
+STORAGE_CLASS = "hcloud-volumes"
+WORKSPACE_SIZE = "10Gi"
+
+# All resource types managed per claw (order: workloads first, storage last)
+CLAW_RESOURCES = (
+    Deployment, Service, CiliumNetworkPolicy,
+    ConfigMap, Secret, PersistentVolumeClaim,
+)
 
 
 # --- Output Dataclasses ---
@@ -34,9 +56,9 @@ IMAGE_PULL_SECRETS = ["dockerhub"]
 class ProvisionResult:
     user_id: str
     claw_id: str
-    service_name: str        # claw-{user_id}-{claw_id}
-    service_dns: str         # claw-x-y.default.svc.cluster.local
-    gateway_port: int        # always 18789
+    service_name: str       # claw-{user_id}-{claw_id}
+    service_dns: str        # claw-x-y.default.svc.cluster.local
+    gateway_port: int       # always 18789
 
 
 @dataclass
@@ -49,10 +71,10 @@ class ClawStatus:
     pod_ip: str | None
 
 
-# --- Naming ---
+# --- Helpers ---
 
 
-def _resource_name(user_id: str, claw_id: str) -> str:
+def _name(user_id: str, claw_id: str) -> str:
     return f"claw-{user_id}-{claw_id}"
 
 
@@ -65,99 +87,205 @@ def _labels(user_id: str, claw_id: str) -> dict[str, str]:
     }
 
 
+async def _create_or_replace(ResourceClass, manifest: dict) -> None:
+    """Create a k8s resource, or replace it if it already exists."""
+    resource = await ResourceClass(manifest)
+    try:
+        await resource.create()
+    except kr8s.ServerError as e:
+        if e.response and e.response.status_code == 409:
+            await resource.replace()
+        else:
+            raise
+
+
+async def _delete_if_exists(ResourceClass, name: str) -> None:
+    """Delete a resource by name, ignore if not found."""
+    try:
+        r = await ResourceClass.get(name, namespace=NAMESPACE)
+        await r.delete()
+    except kr8s.NotFoundError:
+        pass
+
+
 # --- Client ---
 
 
 class ClawClient:
-    """Provisions and manages OpenClaw instances on k3s via K8sClient."""
+    """Provisions and manages OpenClaw instances via kr8s."""
 
-    def __init__(self, k8s: K8sClient, data_root: str = "/data"):
-        self._k8s = k8s
-        self._data_root = data_root
-
-    def provision_claw(
+    async def provision_claw(
         self,
         user_id: str,
         claw_id: str,
         config: OpenclawConfig,
     ) -> ProvisionResult:
-        """Provision a full OpenClaw instance on k3s.
+        """Provision a full OpenClaw instance.
 
         Idempotent — replaces existing resources if they exist.
 
         Creates:
-            1. ConfigMap with openclaw.json + SOUL.md
-            2. Deployment (1 replica, nodeSelector: role=agent)
-            3. ClusterIP Service on port 18789
+            1. ConfigMap  (openclaw.json + SOUL.md)
+            2. Secret     (API keys)
+            3. PVC        (10Gi Hetzner Volume)
+            4. Deployment (openclaw container)
+            5. Service    (ClusterIP :18789)
+            6. CiliumNetworkPolicy (user isolation)
         """
-        name = _resource_name(user_id, claw_id)
+        name = _name(user_id, claw_id)
         labels = _labels(user_id, claw_id)
-        workspace_host = f"{self._data_root}/{user_id}/{claw_id}/workspace"
 
-        # 1. Build config
-        config_dict = build_openclaw_json(config)
-        config_dict["browser"] = {
-            "enabled": True,
-            "attachOnly": True,
-            "defaultProfile": "openclaw",
-            "remoteCdpTimeoutMs": 2000,
-            "remoteCdpHandshakeTimeoutMs": 4000,
-            "profiles": {"openclaw": {
-                "cdpUrl": "http://browser:3000?stealth=true&headless=false",
-                "color": "#00AA00",
-            }},
-        }
+        # --- 1. ConfigMap: openclaw.json + optional SOUL.md ---
+        cm_data = {"openclaw.json": build_openclaw_json_str(config)}
 
-        # 2. Create ConfigMap
-        cm_data = {
-            "openclaw.json": json.dumps(config_dict, indent=2),
-        }
+        configmap_items = [{"key": "openclaw.json", "path": "openclaw.json"}]
+        volume_mounts = [{
+            "name": "config",
+            "mountPath": "/home/node/.openclaw/openclaw.json",
+            "subPath": "openclaw.json",
+            "readOnly": True,
+        }]
+
         if config.system_instructions:
             cm_data["SOUL.md"] = config.system_instructions
-
-        self._k8s.create_configmap(name, data=cm_data, labels=labels)
-
-        # 3. Create Deployment
-        env_vars = build_env_vars(config)
-        configmap_items = [
-            {
-                "key": "openclaw.json",
-                "path": "openclaw.json",
-                "mount_path": "/home/node/.openclaw/openclaw.json",
-            },
-        ]
-        if config.system_instructions:
-            configmap_items.append({
-                "key": "SOUL.md",
-                "path": "SOUL.md",
-                "mount_path": "/home/node/.openclaw/workspace/SOUL.md",
+            configmap_items.append({"key": "SOUL.md", "path": "SOUL.md"})
+            volume_mounts.append({
+                "name": "config",
+                "mountPath": "/home/node/.openclaw/workspace/SOUL.md",
+                "subPath": "SOUL.md",
+                "readOnly": True,
             })
 
-        self._k8s.create_deployment(
-            name=name,
-            image=GATEWAY_IMAGE,
-            port=GATEWAY_PORT,
-            env=env_vars,
-            configmap_name=name,
-            configmap_items=configmap_items,
-            host_volumes={
-                workspace_host: "/home/node/.openclaw/workspace",
+        await _create_or_replace(ConfigMap, {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": name, "namespace": NAMESPACE, "labels": labels},
+            "data": cm_data,
+        })
+
+        # --- 2. Secret: API keys as env vars ---
+        await _create_or_replace(Secret, {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {"name": name, "namespace": NAMESPACE, "labels": labels},
+            "stringData": build_env_vars(config),
+        })
+
+        # --- 3. PVC: 10Gi Hetzner Volume ---
+        # PVCs are immutable once created — skip on conflict
+        pvc = await PersistentVolumeClaim({
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {"name": name, "namespace": NAMESPACE, "labels": labels},
+            "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "storageClassName": STORAGE_CLASS,
+                "resources": {"requests": {"storage": WORKSPACE_SIZE}},
             },
-            node_selector={"role": "agent"},
-            labels=labels,
-            image_pull_secrets=IMAGE_PULL_SECRETS,
-        )
+        })
+        try:
+            await pvc.create()
+        except kr8s.ServerError as e:
+            if not (e.response and e.response.status_code == 409):
+                raise
 
-        # 4. Create Service (ClusterIP, port 18789)
-        self._k8s.create_service(
-            name=name,
-            selector_labels={"app-component": name},
-            port=GATEWAY_PORT,
-            target_port=GATEWAY_PORT,
-        )
+        # --- 4. Deployment ---
+        await _create_or_replace(Deployment, {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": name, "namespace": NAMESPACE, "labels": labels},
+            "spec": {
+                "replicas": 1,
+                "selector": {"matchLabels": {"claw-id": claw_id}},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "securityContext": {"fsGroup": 1000},
+                        "containers": [{
+                            "name": "openclaw",
+                            "image": GATEWAY_IMAGE,
+                            "ports": [{"containerPort": GATEWAY_PORT}],
+                            "envFrom": [{"secretRef": {"name": name}}],
+                            "volumeMounts": volume_mounts + [{
+                                "name": "workspace",
+                                "mountPath": "/home/node/.openclaw/workspace",
+                            }],
+                            "resources": {
+                                "requests": {"cpu": "250m", "memory": "512Mi"},
+                                "limits": {"cpu": "1", "memory": "2Gi"},
+                            },
+                        }],
+                        "volumes": [
+                            {
+                                "name": "config",
+                                "configMap": {
+                                    "name": name,
+                                    "items": configmap_items,
+                                },
+                            },
+                            {
+                                "name": "workspace",
+                                "persistentVolumeClaim": {"claimName": name},
+                            },
+                        ],
+                        "imagePullSecrets": [
+                            {"name": s} for s in IMAGE_PULL_SECRETS
+                        ],
+                    },
+                },
+            },
+        })
 
-        service_dns = f"{name}.default.svc.cluster.local"
-        logger.info(f"Provisioned claw {claw_id} for user {user_id} at {service_dns}")
+        # --- 5. Service ---
+        await _create_or_replace(Service, {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": name, "namespace": NAMESPACE, "labels": labels},
+            "spec": {
+                "selector": {"claw-id": claw_id},
+                "ports": [{"port": GATEWAY_PORT, "targetPort": GATEWAY_PORT}],
+            },
+        })
+
+        # --- 6. CiliumNetworkPolicy ---
+        await _create_or_replace(CiliumNetworkPolicy, {
+            "apiVersion": "cilium.io/v2",
+            "kind": "CiliumNetworkPolicy",
+            "metadata": {"name": name, "namespace": NAMESPACE, "labels": labels},
+            "spec": {
+                "endpointSelector": {"matchLabels": {"user-id": user_id}},
+                "ingress": [
+                    # Same user's other claws
+                    {"fromEndpoints": [
+                        {"matchLabels": {"user-id": user_id}},
+                    ]},
+                    # Backend-infra control plane
+                    {"fromEndpoints": [
+                        {"matchLabels": {"app": "yourclaw-api"}},
+                    ]},
+                ],
+                "egress": [
+                    # Same user's other claws
+                    {"toEndpoints": [
+                        {"matchLabels": {"user-id": user_id}},
+                    ]},
+                    # DNS resolution
+                    {
+                        "toEndpoints": [{"matchLabels": {
+                            "k8s:io.kubernetes.pod.namespace": "kube-system",
+                        }}],
+                        "toPorts": [{"ports": [
+                            {"port": "53", "protocol": "UDP"},
+                        ]}],
+                    },
+                    # External traffic (LLM APIs, web search)
+                    {"toEntities": ["world"]},
+                ],
+            },
+        })
+
+        service_dns = f"{name}.{NAMESPACE}.svc.cluster.local"
+        logger.info(f"Provisioned claw {name} at {service_dns}:{GATEWAY_PORT}")
 
         return ProvisionResult(
             user_id=user_id,
@@ -167,70 +295,73 @@ class ClawClient:
             gateway_port=GATEWAY_PORT,
         )
 
-    def deprovision_claw(self, user_id: str, claw_id: str) -> None:
-        """Tear down a single claw instance."""
-        name = _resource_name(user_id, claw_id)
-        self._k8s.delete_all(name)
+    async def deprovision_claw(self, user_id: str, claw_id: str) -> None:
+        """Tear down all resources for a single claw."""
+        name = _name(user_id, claw_id)
+        for Resource in CLAW_RESOURCES:
+            await _delete_if_exists(Resource, name)
         logger.info(f"Deprovisioned claw {claw_id} for user {user_id}")
 
-    def deprovision_user(self, user_id: str) -> None:
-        """Tear down ALL claws for a user."""
-        deployments = self._k8s.list_deployments(f"app=yourclaw,user-id={user_id}")
-        for dep in deployments:
-            self._k8s.delete_all(dep.name)
+    async def deprovision_user(self, user_id: str) -> None:
+        """Tear down ALL claws for a user via label selector."""
+        selector = {"user-id": user_id}
+        for Resource in CLAW_RESOURCES:
+            for r in await Resource.list(namespace=NAMESPACE, label_selector=selector):
+                await r.delete()
         logger.info(f"Deprovisioned all claws for user {user_id}")
 
-    def get_claw_status(self, user_id: str, claw_id: str) -> ClawStatus:
+    async def get_claw_status(self, user_id: str, claw_id: str) -> ClawStatus:
         """Check if a specific claw is running."""
-        name = _resource_name(user_id, claw_id)
-        status = self._k8s.get_deployment_status(name)
+        name = _name(user_id, claw_id)
 
-        if status is None:
-            return ClawStatus(
-                user_id=user_id,
-                claw_id=claw_id,
-                ready=False,
-                pod_phase=None,
-                node_name=None,
-                pod_ip=None,
-            )
+        try:
+            await Deployment.get(name, namespace=NAMESPACE)
+        except kr8s.NotFoundError:
+            return ClawStatus(user_id, claw_id, False, None, None, None)
+
+        pods = await kr8s.asyncio.get(
+            "pods", namespace=NAMESPACE, label_selector={"claw-id": claw_id},
+        )
+        if not pods:
+            return ClawStatus(user_id, claw_id, False, None, None, None)
+
+        pod = pods[0]
+        phase = pod.status.get("phase")
+        ready = phase == "Running" and all(
+            cs.get("ready", False)
+            for cs in (pod.status.get("containerStatuses") or [])
+        )
 
         return ClawStatus(
             user_id=user_id,
             claw_id=claw_id,
-            ready=status.ready,
-            pod_phase=status.pod_phase,
-            node_name=status.node_name,
-            pod_ip=status.pod_ip,
+            ready=ready,
+            pod_phase=phase,
+            node_name=pod.spec.get("nodeName"),
+            pod_ip=pod.status.get("podIP"),
         )
 
-    def update_claw_config(
+    async def update_claw_config(
         self,
         user_id: str,
         claw_id: str,
         config: OpenclawConfig,
     ) -> None:
-        """Update ConfigMap with new config. Pod restarts to pick up changes."""
-        name = _resource_name(user_id, claw_id)
+        """Update ConfigMap + Secret. Pod restarts to pick up changes."""
+        name = _name(user_id, claw_id)
 
-        config_dict = build_openclaw_json(config)
-        config_dict["browser"] = {
-            "enabled": True,
-            "attachOnly": True,
-            "defaultProfile": "openclaw",
-            "remoteCdpTimeoutMs": 2000,
-            "remoteCdpHandshakeTimeoutMs": 4000,
-            "profiles": {"openclaw": {
-                "cdpUrl": "http://browser:3000?stealth=true&headless=false",
-                "color": "#00AA00",
-            }},
-        }
-
-        cm_data = {
-            "openclaw.json": json.dumps(config_dict, indent=2),
-        }
+        # Update ConfigMap
+        cm_data = {"openclaw.json": build_openclaw_json_str(config)}
         if config.system_instructions:
             cm_data["SOUL.md"] = config.system_instructions
 
-        self._k8s.update_configmap(name, data=cm_data)
+        cm = await ConfigMap.get(name, namespace=NAMESPACE)
+        cm.raw["data"] = cm_data
+        await cm.replace()
+
+        # Update Secret (API keys may have changed)
+        secret = await Secret.get(name, namespace=NAMESPACE)
+        secret.raw["stringData"] = build_env_vars(config)
+        await secret.replace()
+
         logger.info(f"Updated config for claw {claw_id} user {user_id}")

@@ -6,8 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.34",
-    "kubernetes>=32.0",
-    "hcloud>=2.16.0",
+    "kr8s>=0.18",
     "python-dotenv>=1.0",
 ]
 
