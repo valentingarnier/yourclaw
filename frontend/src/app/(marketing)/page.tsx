@@ -19,7 +19,7 @@ function OfferBanner() {
 
   useEffect(() => {
     // Set deadline to 48h from first visit (persisted in localStorage)
-    const STORAGE_KEY = "yourclaw_offer_deadline_v2";
+    const STORAGE_KEY = "yourclaw_offer_deadline_v3";
     let deadline = localStorage.getItem(STORAGE_KEY);
     if (!deadline) {
       const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
