@@ -1,0 +1,132 @@
+"""HTTP client for the YourClaw infra API.
+
+The infra API is a separate service that handles container provisioning
+and deprovisioning on the k8s cluster. This module calls its endpoints.
+"""
+
+import logging
+
+import httpx
+
+from app.config import settings
+
+logger = logging.getLogger("yourclaw.infra_api")
+
+
+def _headers() -> dict[str, str]:
+    return {
+        "Host": settings.infra_api_host,
+        "Authorization": f"Bearer {settings.yourclaw_api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+async def provision(
+    user_id: str,
+    claw_id: str,
+    model: str,
+    anthropic_key: str = "",
+    openai_key: str = "",
+    google_key: str = "",
+    ai_gateway_key: str = "",
+    system_instructions: str | None = None,
+    telegram_bot_token: str = "",
+    telegram_allow_from: list[str] | None = None,
+) -> dict:
+    """Provision an OpenClaw instance via the infra API.
+
+    Args:
+        user_id: User identifier.
+        claw_id: Claw instance identifier.
+        model: LLM model string.
+        anthropic_key: Anthropic API key (BYOK or shared).
+        openai_key: OpenAI API key (BYOK or shared).
+        google_key: Google API key (BYOK or shared).
+        ai_gateway_key: Vercel AI Gateway key (routes to all providers).
+        system_instructions: Custom system prompt (stored as SOUL.md).
+        telegram_bot_token: Per-user Telegram bot token from @BotFather.
+        telegram_allow_from: Telegram usernames allowed to message the bot.
+
+    Returns:
+        Response dict from infra API.
+    """
+    if settings.mock_containers:
+        logger.info(f"[Mock] Provision {user_id}/{claw_id} model={model}")
+        return {"status": "ok", "user_id": user_id, "claw_id": claw_id}
+
+    payload: dict = {
+        "user_id": user_id,
+        "claw_id": claw_id,
+        "model": model,
+    }
+
+    if anthropic_key:
+        payload["anthropic_key"] = anthropic_key
+    if openai_key:
+        payload["openai_key"] = openai_key
+    if google_key:
+        payload["google_key"] = google_key
+    if ai_gateway_key:
+        payload["ai_gateway_key"] = ai_gateway_key
+    if system_instructions is not None:
+        payload["system_instructions"] = system_instructions
+    if telegram_bot_token:
+        payload["telegram_bot_token"] = telegram_bot_token
+    if telegram_allow_from:
+        payload["telegram_allow_from"] = telegram_allow_from
+
+    logger.info(f"Provisioning {user_id}/{claw_id} model={model}")
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(
+            f"{settings.infra_api_url}/provision",
+            headers=_headers(),
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    logger.info(f"Provisioned {user_id}/{claw_id}: {data}")
+    return data
+
+
+async def deprovision(user_id: str, claw_id: str) -> dict:
+    """Deprovision a single claw instance via the infra API."""
+    if settings.mock_containers:
+        logger.info(f"[Mock] Deprovision {user_id}/{claw_id}")
+        return {"status": "ok"}
+
+    logger.info(f"Deprovisioning {user_id}/{claw_id}")
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{settings.infra_api_url}/deprovision",
+            headers=_headers(),
+            json={"user_id": user_id, "claw_id": claw_id},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    logger.info(f"Deprovisioned {user_id}/{claw_id}: {data}")
+    return data
+
+
+async def deprovision_user(user_id: str) -> dict:
+    """Deprovision ALL claw instances for a user via the infra API."""
+    if settings.mock_containers:
+        logger.info(f"[Mock] Deprovision all for user {user_id}")
+        return {"status": "ok"}
+
+    logger.info(f"Deprovisioning all claws for user {user_id}")
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{settings.infra_api_url}/deprovision-user",
+            headers=_headers(),
+            json={"user_id": user_id},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    logger.info(f"Deprovisioned all for user {user_id}: {data}")
+    return data

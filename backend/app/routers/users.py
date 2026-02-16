@@ -44,9 +44,13 @@ async def get_me(user_id: uuid.UUID = Depends(get_current_user)) -> UserProfile:
             },
         )
         if resp.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to fetch user info")
-        user_data = resp.json()
-        email = user_data.get("email", "")
+            if settings.dev_user_id:
+                email = "dev@localhost"
+            else:
+                raise HTTPException(status_code=500, detail="Failed to fetch user info")
+        else:
+            user_data = resp.json()
+            email = user_data.get("email", "")
 
     return UserProfile(
         id=user_id,

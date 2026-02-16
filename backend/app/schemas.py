@@ -56,12 +56,15 @@ DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
 class AssistantResponse(BaseModel):
     status: str
     model: str = DEFAULT_MODEL
+    claw_id: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 class AssistantCreateInput(BaseModel):
     model: str = Field(default=DEFAULT_MODEL, description="OpenClaw model identifier")
+    telegram_bot_token: str | None = Field(None, description="Per-user Telegram bot token from @BotFather")
+    telegram_allow_from: list[str] = Field(default_factory=list, description="Telegram usernames allowed to message the bot")
 
 
 class AssistantUpdateInput(BaseModel):
@@ -69,8 +72,9 @@ class AssistantUpdateInput(BaseModel):
 
 
 class AssistantCreateResponse(BaseModel):
-    status: str  # PROVISIONING
+    status: str  # READY or ERROR
     model: str = DEFAULT_MODEL
+    claw_id: str | None = None
 
 
 # --- Checkout / Subscription ---

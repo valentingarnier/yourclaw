@@ -1,5 +1,6 @@
 import logging
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -87,6 +88,39 @@ async def test_cancellation_email(
 
     await send_cancellation_email(email, first_name, channel)
     return {"status": "sent", "to": email, "first_name": first_name, "channel": channel}
+
+
+@app.on_event("startup")
+async def ensure_dev_user() -> None:
+    """In dev mode, create the dev user in Supabase auth if it doesn't exist."""
+    if not settings.dev_user_id:
+        return
+    headers = {
+        "apikey": settings.supabase_service_role_key,
+        "Authorization": f"Bearer {settings.supabase_service_role_key}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{settings.supabase_url}/auth/v1/admin/users/{settings.dev_user_id}",
+            headers=headers,
+        )
+        if resp.status_code == 200:
+            logger.info(f"Dev user {settings.dev_user_id} already exists")
+            return
+        resp = await client.post(
+            f"{settings.supabase_url}/auth/v1/admin/users",
+            headers=headers,
+            json={
+                "id": settings.dev_user_id,
+                "email": "dev@localhost",
+                "email_confirm": True,
+            },
+        )
+        if resp.status_code in (200, 201):
+            logger.info(f"Created dev user {settings.dev_user_id} in Supabase auth")
+        else:
+            logger.warning(f"Failed to create dev user: {resp.status_code} {resp.text}")
 
 
 # Register routers
