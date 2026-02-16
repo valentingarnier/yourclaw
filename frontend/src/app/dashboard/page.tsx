@@ -501,31 +501,6 @@ function AssistantSection({
           </div>
         </div>
 
-        {/* Google */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <img src="/gemini-logo.png" alt="Google" className="size-5" />
-            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Google</p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {AVAILABLE_MODELS.filter((m) => m.provider === "google").map((model) => (
-              <ModelButton
-                key={model.id}
-                model={model}
-                selected={selectedModel === model.id}
-                disabled={assistant?.status === "PROVISIONING"}
-                onClick={() => {
-                  if (canChangeModel) {
-                    onModelChange(model.id);
-                  } else if (assistant?.status === "READY") {
-                    onUpdateModel(model.id);
-                  }
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
         {assistant?.status === "READY" && (
           <Text className="mt-6 text-xs">Changing model will reprovision your assistant.</Text>
         )}

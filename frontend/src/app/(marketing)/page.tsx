@@ -91,7 +91,7 @@ export default function HomePage() {
 }
 
 function HeroSection() {
-  const [selectedModel, setSelectedModel] = useState<"claude" | "openai" | "gemini">("claude");
+  const [selectedModel, setSelectedModel] = useState<"claude" | "openai">("claude");
   const [channel, setChannel] = useState<"WHATSAPP" | "TELEGRAM">("TELEGRAM");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [telegramUsername, setTelegramUsername] = useState("");
@@ -109,12 +109,6 @@ function HeroSection() {
       name: "GPT-4o",
       provider: "OpenAI",
       icon: <img src="/openai-logo.png" alt="OpenAI" className="w-5 h-5 object-contain" />,
-    },
-    {
-      id: "gemini" as const,
-      name: "Gemini 2.0",
-      provider: "Google",
-      icon: <img src="/gemini-logo.png" alt="Gemini" className="w-5 h-5 object-contain" />,
     },
   ];
 
@@ -279,7 +273,7 @@ function HeroSection() {
                     <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">1</span>
                     Choose your AI model
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {models.map((model) => (
                       <button
                         key={model.id}
@@ -919,7 +913,7 @@ function PricingSection() {
     "Your own dedicated server",
     "Email, calendar & file management",
     "24/7 availability",
-    "All AI models (Claude, GPT, Gemini)",
+    "All AI models (Claude, GPT)",
   ];
 
   return (

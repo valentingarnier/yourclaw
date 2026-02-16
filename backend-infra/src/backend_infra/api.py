@@ -36,7 +36,6 @@ class ProvisionRequest(BaseModel):
     claw_id: str
     anthropic_key: str = ""
     openai_key: str = ""
-    google_key: str = ""
     ai_gateway_key: str = ""
     model: str = "anthropic/claude-sonnet-4.5"
     system_instructions: str | None = None
@@ -78,7 +77,6 @@ async def provision(req: ProvisionRequest):
         provider_keys=ProviderKeys(
             anthropic=req.anthropic_key,
             openai=req.openai_key,
-            google=req.google_key,
             ai_gateway=req.ai_gateway_key,
         ),
         channels=channels,

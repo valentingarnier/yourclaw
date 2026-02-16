@@ -27,7 +27,6 @@ class ModelConfig:
 class ProviderKeys:
     anthropic: str = ""
     openai: str = ""
-    google: str = ""
     ai_gateway: str = ""
 
 
@@ -143,7 +142,6 @@ def build_env_vars(config: OpenclawConfig) -> dict[str, str]:
     key_map = {
         "ANTHROPIC_API_KEY": config.provider_keys.anthropic,
         "OPENAI_API_KEY": config.provider_keys.openai,
-        "GOOGLE_API_KEY": config.provider_keys.google,
         "AI_GATEWAY_API_KEY": config.provider_keys.ai_gateway,
     }
 
