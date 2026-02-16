@@ -127,7 +127,7 @@ export default function DashboardPage() {
   async function handleCreateAssistant() {
     try {
       setError(null);
-      await api.createAssistant(selectedModel);
+      await api.createAssistant({ model: selectedModel });
       await loadData();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create assistant";
@@ -135,9 +135,6 @@ export default function DashboardPage() {
       if (message.includes("subscription") || message.includes("402")) {
         try {
           const { checkout_url } = await api.createCheckout();
-          if (typeof window !== "undefined" && window.fbq) {
-            window.fbq("track", "InitiateCheckout");
-          }
           window.location.href = checkout_url;
           return;
         } catch {
@@ -368,10 +365,12 @@ function AssistantSection({
   const currentModelInfo = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
   const [editingChannel, setEditingChannel] = useState(false);
   const [newChannel, setNewChannel] = useState<"WHATSAPP" | "TELEGRAM">(
-    (user?.channel as "WHATSAPP" | "TELEGRAM") || "WHATSAPP"
+    (user?.channel as "WHATSAPP" | "TELEGRAM") || "TELEGRAM"
   );
   const [newPhone, setNewPhone] = useState(user?.phone || "");
   const [newTelegramUsername, setNewTelegramUsername] = useState(user?.telegram_username || "");
+  const [newBotToken, setNewBotToken] = useState("");
+  const [showBotTutorial, setShowBotTutorial] = useState(false);
   const [channelSaving, setChannelSaving] = useState(false);
   const [channelError, setChannelError] = useState<string | null>(null);
 
@@ -388,6 +387,10 @@ function AssistantSection({
         setChannelError("Enter a valid Telegram username (5-32 chars)");
         return;
       }
+      if (!newBotToken || !newBotToken.includes(":")) {
+        setChannelError("Enter a valid Telegram bot token (from @BotFather)");
+        return;
+      }
     }
     try {
       setChannelSaving(true);
@@ -396,8 +399,13 @@ function AssistantSection({
         newChannel === "WHATSAPP" ? newPhone : undefined,
         newChannel === "TELEGRAM" ? newTelegramUsername.replace(/^@/, "") : undefined,
       );
-      // Channel saved, now create the assistant
-      onCreateAssistant();
+      // Channel saved, now create the assistant with bot token
+      await api.createAssistant({
+        model: selectedModel,
+        telegram_bot_token: newChannel === "TELEGRAM" ? newBotToken : undefined,
+        telegram_allow_from: newChannel === "TELEGRAM" ? [newTelegramUsername.replace(/^@/, "")] : undefined,
+      });
+      onRefresh();
     } catch (err) {
       setChannelError(err instanceof Error ? err.message : "Failed to save channel");
     } finally {
@@ -561,32 +569,15 @@ function AssistantSection({
                       </svg>
                     </div>
                     <span className="text-sm font-medium text-white">Telegram</span>
-                    {user?.telegram_connected && (
-                      <Badge color="emerald" className="ml-auto">Connected</Badge>
-                    )}
+                    <Badge color="emerald" className="ml-auto">Live</Badge>
                   </div>
                   <div className="px-4 py-4 space-y-3">
                     <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                      {user?.telegram_connected
-                        ? "Your assistant is connected! Send a message to chat."
-                        : "Message the bot to activate your assistant:"}
+                      Your assistant is ready! Open your bot on Telegram to start chatting.
                     </p>
-                    <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
-                      <span className="text-base font-mono font-semibold text-zinc-950 dark:text-white">
-                        @Yourclawdev_bot
-                      </span>
-                    </div>
-                    <a
-                      href="https://t.me/Yourclawdev_bot"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0088CC] hover:bg-[#006DA4] px-4 py-2.5 text-sm font-medium text-white transition-colors"
-                    >
-                      <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                      </svg>
-                      Open Telegram
-                    </a>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Only messages from <span className="font-medium">@{user?.telegram_username}</span> are allowed.
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -652,15 +643,12 @@ function AssistantSection({
             <div className="flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">
               <button
                 type="button"
-                onClick={() => setNewChannel("WHATSAPP")}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  newChannel === "WHATSAPP"
-                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
+                disabled
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-50"
               >
                 <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
                 WhatsApp
+                <span className="text-[10px] uppercase tracking-wider font-semibold bg-zinc-200 dark:bg-zinc-600 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">Soon</span>
               </button>
               <button
                 type="button"
@@ -678,28 +666,90 @@ function AssistantSection({
 
             {/* Contact input */}
             {newChannel === "WHATSAPP" ? (
-              <input
-                type="tel"
-                value={newPhone}
-                onChange={(e) => setNewPhone(e.target.value)}
-                placeholder="+15551234567"
-                className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
-              />
-            ) : (
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">@</span>
+              <>
                 <input
-                  type="text"
-                  value={newTelegramUsername}
-                  onChange={(e) => setNewTelegramUsername(e.target.value.replace(/^@/, ""))}
-                  placeholder="username"
-                  className="w-full pl-7 pr-3 py-2.5 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="+15551234567"
+                  className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
                 />
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Include country code (e.g., +1 for US)</p>
+              </>
+            ) : (
+              <div className="space-y-4">
+                {/* Telegram username */}
+                <div>
+                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your Telegram username</p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">@</span>
+                    <input
+                      type="text"
+                      value={newTelegramUsername}
+                      onChange={(e) => setNewTelegramUsername(e.target.value.replace(/^@/, ""))}
+                      placeholder="username"
+                      className="w-full pl-7 pr-3 py-2.5 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Bot token */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Bot token</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowBotTutorial(!showBotTutorial)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {showBotTutorial ? "Hide guide" : "How to get a bot token?"}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={newBotToken}
+                    onChange={(e) => setNewBotToken(e.target.value.trim())}
+                    placeholder="123456789:ABCdefGhIjKlMnOpQrStUvWxYz"
+                    className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm font-mono text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                  />
+                </div>
+
+                {/* BotFather tutorial */}
+                {showBotTutorial && (
+                  <div className="rounded-xl border border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/30 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <svg viewBox="0 0 24 24" className="w-5 h-5 fill-blue-500"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                      <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Create your Telegram bot in 30 seconds</p>
+                    </div>
+                    <ol className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
+                      <li className="flex gap-2">
+                        <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-blue-200 dark:bg-blue-800 text-xs font-bold text-blue-700 dark:text-blue-300">1</span>
+                        <span>Open Telegram and search for <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="font-semibold underline">@BotFather</a></span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-blue-200 dark:bg-blue-800 text-xs font-bold text-blue-700 dark:text-blue-300">2</span>
+                        <span>Send <code className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900 font-mono text-xs">/newbot</code> and follow the prompts</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-blue-200 dark:bg-blue-800 text-xs font-bold text-blue-700 dark:text-blue-300">3</span>
+                        <span>Choose a name (e.g., &quot;My AI Assistant&quot;)</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-blue-200 dark:bg-blue-800 text-xs font-bold text-blue-700 dark:text-blue-300">4</span>
+                        <span>Choose a username ending in <code className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900 font-mono text-xs">bot</code> (e.g., <code className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900 font-mono text-xs">my_ai_assistant_bot</code>)</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-blue-200 dark:bg-blue-800 text-xs font-bold text-blue-700 dark:text-blue-300">5</span>
+                        <span>Copy the <strong>HTTP API token</strong> and paste it above</span>
+                      </li>
+                    </ol>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      The token looks like: <code className="font-mono">123456789:ABCdefGhIjKlMnOpQrStUvWxYz</code>
+                    </p>
+                  </div>
+                )}
               </div>
             )}
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {newChannel === "WHATSAPP" ? "Include country code (e.g., +1 for US)" : "Your Telegram username (without the @)"}
-            </p>
 
             {channelError && (
               <p className="text-sm text-red-600 dark:text-red-400">{channelError}</p>
