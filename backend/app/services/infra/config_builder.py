@@ -19,7 +19,7 @@ class GatewayConfig:
 
 @dataclass
 class ModelConfig:
-    primary: str = "anthropic/claude-sonnet-4-5-20250929"
+    primary: str = "anthropic/claude-sonnet-4.5"
     context_tokens: int = 200000
 
 

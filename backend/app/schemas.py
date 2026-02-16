@@ -44,7 +44,7 @@ AVAILABLE_MODELS = [
     "openai/gpt-4o",
     "openai/gpt-4o-mini",
     # Anthropic (Vercel AI Gateway IDs)
-    "anthropic/claude-opus-4-6",
+    "anthropic/claude-opus-4.6",
     "anthropic/claude-sonnet-4.5",
     "anthropic/claude-haiku-4.5",
     # Google

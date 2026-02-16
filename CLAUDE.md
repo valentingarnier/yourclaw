@@ -109,11 +109,12 @@ See `backend-infra/API.md` for full spec.
 
 | Model ID | Display Name |
 |----------|--------------|
-| `anthropic/claude-sonnet-4-5-20250929` | Claude Sonnet 4.5 (default) |
-| `anthropic/claude-opus-4-5-20251101` | Claude Opus 4.5 |
-| `anthropic/claude-haiku-4-5-20251001` | Claude Haiku 4.5 |
+| `openai/gpt-5.2-codex` | GPT-5.2 Codex (default) |
 | `openai/gpt-4o` | GPT-4o |
 | `openai/gpt-4o-mini` | GPT-4o Mini |
+| `anthropic/claude-opus-4.6` | Claude Opus 4.6 |
+| `anthropic/claude-sonnet-4.5` | Claude Sonnet 4.5 |
+| `anthropic/claude-haiku-4.5` | Claude Haiku 4.5 |
 | `google/gemini-2.0-flash` | Gemini 2.0 Flash |
 | `google/gemini-2.0-flash-lite` | Gemini 2.0 Flash Lite |
 
