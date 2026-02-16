@@ -1,18 +1,18 @@
 # YourClaw MVP
 
-Multi-channel AI assistant (WhatsApp + Telegram). User signs in, picks a channel, pays ($20/mo + 48h trial), gets a personal Openclaw instance. No setup required.
+Telegram AI assistant. User signs in, picks Telegram, pays ($20/mo + 48h trial), gets a personal Openclaw instance. WhatsApp coming soon.
 
 ## Architecture
 
 - **Auth + DB**: Supabase (Google sign-in only, cloud Postgres)
 - **Backend**: FastAPI — frontend never talks to Supabase directly for data
 - **Frontend**: Next.js App Router + Tailwind + Catalyst UI
-- **Containers**: Docker on Hetzner host. One container per user. Image: `yourclaw-openclaw:latest`
-- **WhatsApp**: Single Twilio number, route by sender phone. Async REST API replies (no timeout).
-- **Telegram**: Single bot (`@Yourclawdev_bot`), route by `telegram_chat_id`/`telegram_username`. Async Bot API replies.
-- **Openclaw API**: `POST /v1/chat/completions` on port 18789 per container (OpenAI-compatible)
-- **Job queue**: DB-backed (`provisioning_jobs` + Python worker polling). No Redis/Celery.
-- **LLM providers**: Anthropic, OpenAI, Google. Shared keys + BYOK.
+- **Infra**: k3s on Hetzner. One pod per user. Separate infra API handles provisioning.
+- **Telegram**: Per-user bot (user provides their own @BotFather token), route by `telegram_username`. Async Bot API replies.
+- **WhatsApp**: Paused (Coming Soon). Single Twilio number, route by sender phone.
+- **Openclaw API**: `POST /v1/chat/completions` on port 18789 per pod (OpenAI-compatible)
+- **Provisioning**: Direct HTTP calls to infra API. No worker, no job queue.
+- **LLM providers**: Anthropic, OpenAI, Google. Shared keys + BYOK via Vercel AI Gateway.
 - **Payments**: Stripe Checkout subscription. 48h free trial. $10 credits on first purchase.
 - **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true`, `MOCK_TELEGRAM=true`
 
@@ -29,32 +29,27 @@ Multi-channel AI assistant (WhatsApp + Telegram). User signs in, picks a channel
 /backend/app/
   main.py, config.py, auth.py, schemas.py
   /routers/  — users, assistants, checkout, api_keys, usage, webhooks, oauth
-  /services/ — container_service, openclaw_client, twilio_service, stripe_service, email_service, encryption, credits
-  worker.py                        — Provisioning job worker
-/infra/ansible                     — Host server bootstrap
-/infra/docker                      — Container Dockerfiles + build script
+  /services/ — infra_api, openclaw_client, twilio_service, stripe_service, email_service, encryption, credits
+/backend-infra/                    — Infra API (separate service on k3s control plane)
 ```
 
 ## Data Model
 
 Tables in `public` schema (auth via Supabase `auth.users`):
 
-- **user_phones**: user_id, channel (WHATSAPP|TELEGRAM), phone_e164 (nullable), telegram_username, telegram_chat_id
-- **assistants**: user_id, status (NONE|PROVISIONING|READY|ERROR), container_id, host_server_id, port, gateway_token_encrypted, model
-- **host_servers**: ip, ssh_key_ref, max_containers, current_containers
+- **user_phones**: user_id, channel (WHATSAPP|TELEGRAM), phone_e164 (nullable), telegram_username, telegram_chat_id, telegram_bot_token_encrypted
+- **assistants**: user_id, status (NONE|PROVISIONING|READY|ERROR), claw_id, model
 - **messages**: user_id, direction (INBOUND|OUTBOUND), body, channel, twilio_sid, telegram_message_id
 - **usage_daily**: user_id, date, inbound_count, outbound_count (UNIQUE user_id+date)
 - **api_keys**: user_id, provider (ANTHROPIC|OPENAI|GOOGLE), encrypted_key
 - **subscriptions**: user_id, stripe_customer_id, stripe_subscription_id, status (ACTIVE|PAST_DUE|CANCELED), current_period_end
 - **user_credits**: user_id, total_cents, used_cents (NOT CURRENTLY USED)
-- **provisioning_jobs**: user_id, status (PENDING|RUNNING|COMPLETED|FAILED), attempts, last_error
 - **user_integrations**: user_id, service, tokens (PAUSED — Google OAuth not verified)
 
 ## State Machines
 
 - **assistant.status**: NONE → PROVISIONING → READY (or ERROR → PROVISIONING retry)
 - **subscriptions.status**: ACTIVE → PAST_DUE → CANCELED (PAST_DUE can return to ACTIVE)
-- **provisioning_jobs.status**: PENDING → RUNNING → COMPLETED (or FAILED after 3 attempts)
 
 ## API Endpoints (`/api/v1`)
 
@@ -67,7 +62,7 @@ POST   /users/me/channel              — set channel + contact info
 POST   /assistants                    — create/recreate (idempotent, requires subscription)
 GET    /assistants                    — status + info
 PATCH  /assistants                    — update model (triggers reprovision)
-DELETE /assistants                    — destroy container
+DELETE /assistants                    — destroy pod
 
 POST   /checkout                      — Stripe Checkout session
 GET    /subscription                  — status + details (fetches live from Stripe)
@@ -84,55 +79,32 @@ POST   /webhooks/telegram             — Telegram inbound (secret token validat
 POST   /webhooks/stripe               — Stripe events (signature validated)
 ```
 
-## Request Flows
+## Infra API
 
-**WhatsApp/Telegram inbound**: Webhook validates signature → lookup user → check assistant READY → return immediately → background task calls Openclaw container (`/v1/chat/completions` with last 20 messages) → send reply async (Twilio REST API / Telegram Bot API). No timeout.
+Separate service running on the k3s control plane. Backend calls it via HTTP.
 
-**Provisioning**: POST /assistants → creates job → worker polls → SSH to host → `docker run yourclaw-{user_id}` → write config → health check → status=READY → send notification (WhatsApp template / Telegram DM).
-
-**Stripe**: Checkout session → webhook `checkout.session.completed` → create subscription + trigger provisioning. Also handles `invoice.payment_succeeded/failed`, `customer.subscription.deleted/updated`.
-
-**WhatsApp 24h session window**: Can only send free-form replies within 24h of user's last message. For proactive messages (e.g. "assistant ready"), use template messages (Content SID: `HX2da33755ce26e6cd5177e9d07bba71d6`).
-
-## Openclaw Container Config
-
-Each container gets `~/.openclaw/openclaw.json`:
-
-```json
-{
-  "agents": { "defaults": {
-    "model": { "primary": "anthropic/claude-sonnet-4-5-20250929" },
-    "contextTokens": 200000, "thinkingDefault": "low",
-    "blockStreamingDefault": "on",
-    "compaction": { "memoryFlush": { "enabled": true } }
-  }},
-  "gateway": { "mode": "local", "port": 18789,
-    "auth": { "mode": "token", "token": "<per-user-uuid4>" },
-    "http": { "endpoints": { "chatCompletions": { "enabled": true } } }
-  },
-  "tools": { "profile": "full",
-    "deny": ["browser", "playwright_browser_install"],
-    "web": { "search": { "enabled": true }, "fetch": { "enabled": true } },
-    "media": { "image": { "enabled": true } }
-  },
-  "plugins": { "entries": { "openclaw-mcp-adapter": { "enabled": true,
-    "config": { "servers": [{ "name": "playwright", "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless", "--executable-path", "/usr/bin/chromium"]
-    }]}
-  }}},
-  "browser": { "enabled": false },
-  "commands": { "restart": true }
-}
+```
+GET    /health                        — health check (no auth)
+POST   /provision                     — create/update OpenClaw pod (idempotent)
+POST   /deprovision                   — destroy single claw instance
+POST   /deprovision-user              — destroy ALL claw instances for a user
 ```
 
-**Key points:**
-- `tools.deny` removes native browser + install from LLM tool list (use Playwright MCP instead)
-- LLM keys set as container env vars: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`
-- Gateway started with: `openclaw gateway --port 18789 --bind lan`
-- Host paths: `/data/yourclaw/{user_id}/config/` → `/root/.openclaw`, `workspace/` → `/root/.openclaw/workspace`
-- Gateway API is **stateless** — we pass last 20 messages from DB with each request
-- Long-term memory via workspace files (USER.md, IDENTITY.md) — persists across reprovisions
+All endpoints (except /health) require `Authorization: Bearer <YOURCLAW_API_KEY>`.
+
+Config: `INFRA_API_URL` (IP), `INFRA_API_HOST` (Host header for routing), `YOURCLAW_API_KEY` (Bearer token).
+
+See `backend-infra/API.md` for full spec.
+
+## Request Flows
+
+**Telegram inbound**: Webhook validates secret token → lookup user by telegram_username → check assistant READY → return immediately → background task calls Openclaw pod (`/v1/chat/completions` with last 20 messages) → send reply async (Telegram Bot API). No timeout.
+
+**Provisioning**: POST /assistants → validate subscription → call infra API `/provision` with user keys + telegram config → infra API creates k8s Deployment, Service, ConfigMap, Secret, PVC, CiliumNetworkPolicy → status=READY.
+
+**Stripe**: Checkout session → webhook `checkout.session.completed` → create subscription + credits. User then creates assistant from dashboard. Also handles `invoice.payment_succeeded/failed`, `customer.subscription.deleted/updated`.
+
+**BYOK key update**: POST /api-keys → store encrypted key → re-provision same claw_id with updated keys (idempotent).
 
 ## Available Models
 
@@ -146,7 +118,7 @@ Each container gets `~/.openclaw/openclaw.json`:
 | `google/gemini-2.0-flash` | Gemini 2.0 Flash |
 | `google/gemini-2.0-flash-lite` | Gemini 2.0 Flash Lite |
 
-Model changes trigger reprovisioning (PATCH /assistants → new provisioning job → container recreated).
+Model changes trigger reprovisioning (PATCH /assistants → deprovision old + provision new via infra API).
 
 ## Conventions
 
@@ -155,44 +127,56 @@ Model changes trigger reprovisioning (PATCH /assistants → new provisioning job
 - **API**: `/api/v1/` prefix, `{ "detail": "..." }` errors
 - **Commits**: conventional (`feat:`, `fix:`, `docs:`, `chore:`)
 - **Secrets**: never logged, encrypted at rest (Fernet), never in frontend
-- **Idempotency**: provisioning is idempotent per user
+- **Idempotency**: provisioning is idempotent per user (same claw_id = update in place)
 
 ## Security
 
-- Twilio: HMAC-SHA1 signature validation
 - Stripe: `stripe.Webhook.construct_event()` signature validation
 - Telegram: `X-Telegram-Bot-Api-Secret-Token` header validation
+- Twilio: HMAC-SHA1 signature validation (WhatsApp, paused)
 - Auth: Supabase JWT on every API request (middleware)
-- Encryption: Fernet for API keys + gateway tokens
-- Host: SSH key only, firewall restricts container ports to backend IP
-- Containers: memory/CPU limits, Docker socket mounted for browser sandbox
+- Encryption: Fernet for API keys + bot tokens
+- Infra API: Bearer token auth, firewall restricts access
+- Pods: CiliumNetworkPolicy, resource limits, persistent volumes
 
 ## Local Dev
 
 ```bash
 cd frontend && pnpm install
 cd backend && uv sync
-# Backend: MOCK_TWILIO=true MOCK_CONTAINERS=true MOCK_STRIPE=true uv run uvicorn app.main:app --reload --port 8000
-# Worker:  MOCK_CONTAINERS=true uv run python -m app.worker
-# Frontend: pnpm dev (port 3000)
+
+# Backend (set env vars in backend/.env):
+#   DEV_USER_ID=<uuid>              — bypass Google OAuth
+#   MOCK_CONTAINERS=true            — skip infra API calls
+#   MOCK_STRIPE=true                — skip subscription check
+#   MOCK_TWILIO=true MOCK_TELEGRAM=true
+uv run uvicorn app.main:app --reload --port 8000
+
+# Frontend (set NEXT_PUBLIC_DEV_MODE=true in frontend/.env.local):
+pnpm dev  # port 3000
 ```
 
-See `.env.example` for all env vars.
+Dev mode auto-creates the dev user in Supabase auth on backend startup.
+
+No worker needed — provisioning is synchronous via infra API.
 
 ## Production
 
 - Backend: Render (`https://yourclaw.onrender.com`)
 - Frontend: Vercel (`https://www.yourclaw.dev`)
+- Infra API: Hetzner k3s (`INFRA_API_URL` env var)
 - Stripe Price ID: `price_1SyZSbCFAYv3UO1LWxf67wDW`
 - GA4: `G-2E55TEMF7X`
 - Emails: Resend (`hello@yourclaw.dev`)
 
 ## Paused Features
 
-- **Google Integrations** (Calendar, Gmail, Drive): Backend complete (`routers/oauth.py`, `user_integrations` table), UI hidden. Waiting for Google OAuth verification. Files: `supabase/migrations/002_user_integrations.sql`.
+- **WhatsApp**: UI shows "Coming Soon" badge. Backend Twilio integration exists but disabled in frontend.
+- **Google Integrations** (Calendar, Gmail, Drive): Backend exists (`routers/oauth.py`, `user_integrations` table), UI hidden. Waiting for Google OAuth verification.
 
 ## TODOs
 
 1. **Increase Anthropic API rate limit** — Currently Tier 1 (50k tokens/min). Need Tier 2+ for production scale.
 2. **Rate limits** — Implement daily (100 msg/day) + per-minute (5 msg/min) limits.
 3. **Re-enable Google Integrations** after OAuth app verification.
+4. **Re-enable WhatsApp** once Twilio number is configured.
