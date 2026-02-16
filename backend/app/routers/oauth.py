@@ -318,44 +318,6 @@ async def update_container_config(user_id: str) -> None:
     """Update running container's config with current integrations.
 
     Called when user connects/disconnects a service.
+    PAUSED: Google integrations not yet verified. Will re-implement via infra API.
     """
-    from app.services.container_service import container_service
-
-    # Check if user has a running assistant
-    assistant = await db.select("assistants", filters={"user_id": user_id}, single=True)
-    if not assistant or assistant["status"] != "READY":
-        logger.info(f"No running assistant for user {user_id}, skipping config update")
-        return
-
-    gateway_token = decrypt(assistant["gateway_token_encrypted"])
-
-    # Get all integrations with valid tokens
-    integrations = await db.select("user_integrations", filters={"user_id": user_id})
-
-    integration_tokens = {}
-    for integration in (integrations or []):
-        service = integration["service"]
-
-        # Refresh if needed
-        service_key = None
-        for key, db_name in SERVICE_DB_NAMES.items():
-            if db_name == service:
-                service_key = key
-                break
-
-        if service_key:
-            token = await get_valid_token(user_id, service_key)
-            if token:
-                integration_tokens[service] = token
-
-    # Update container config
-    success = await container_service.update_config(
-        user_id=user_id,
-        gateway_token=gateway_token,
-        integrations=integration_tokens,
-    )
-
-    if success:
-        logger.info(f"Updated container config for user {user_id} with {len(integration_tokens)} integrations")
-    else:
-        logger.error(f"Failed to update container config for user {user_id}")
+    logger.info(f"update_container_config called for user {user_id} — paused (Google OAuth not verified)")

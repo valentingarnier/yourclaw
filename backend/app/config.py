@@ -19,11 +19,6 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_price_id: str = ""  # $20/month subscription
 
-    # Hetzner Host Server
-    host_server_ip: str = ""
-    host_server_ssh_key_path: str = ""  # Local dev: path to SSH key file
-    host_server_ssh_key: str = ""  # Production: SSH key content (for Render/Railway)
-
     # Shared LLM Keys
     anthropic_api_key: str = ""
     openai_api_key: str = ""
@@ -47,10 +42,6 @@ class Settings(BaseSettings):
     # Rate Limits
     rate_limit_msg_per_min: int = 5
     rate_limit_msg_per_day: int = 100
-
-    # Worker
-    worker_poll_interval: int = 5
-    worker_max_attempts: int = 3
 
     # Telegram
     telegram_bot_token: str = ""  # From @BotFather

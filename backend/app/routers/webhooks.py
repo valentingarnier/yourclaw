@@ -578,19 +578,6 @@ async def handle_checkout_completed(session: dict) -> None:
         on_conflict="user_id",
     )
 
-    # Create provisioning job (auto-start assistant)
-    await db.insert("provisioning_jobs", {
-        "user_id": user_id,
-        "status": "PENDING",
-    })
-
-    # Create assistant record
-    await db.upsert(
-        "assistants",
-        {"user_id": user_id, "status": "PROVISIONING"},
-        on_conflict="user_id",
-    )
-
     logger.info(f"Checkout completed for user {user_id}")
 
     # Send subscription thank-you email (best-effort)
