@@ -300,9 +300,6 @@ async def delete_assistant(user_id: uuid.UUID = Depends(get_current_user)) -> No
         {
             "status": "NONE",
             "claw_id": None,
-            "container_id": None,
-            "port": None,
-            "gateway_token_encrypted": None,
             "updated_at": datetime.utcnow().isoformat(),
         },
         {"user_id": str(user_id)},

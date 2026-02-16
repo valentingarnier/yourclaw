@@ -43,11 +43,6 @@ class Settings(BaseSettings):
     rate_limit_msg_per_min: int = 5
     rate_limit_msg_per_day: int = 100
 
-    # Telegram
-    telegram_bot_token: str = ""  # From @BotFather
-    telegram_bot_username: str = "Yourclawdev_bot"  # Bot username (without @)
-    telegram_webhook_secret: str = ""  # Secret for webhook validation
-
     # Email (Resend)
     resend_api_key: str = ""
 
@@ -63,7 +58,6 @@ class Settings(BaseSettings):
     mock_twilio: bool = False
     mock_containers: bool = False
     mock_stripe: bool = False
-    mock_telegram: bool = False
     skip_twilio_signature: bool = False  # Skip signature validation for dev/ngrok
 
     # Dev Mode

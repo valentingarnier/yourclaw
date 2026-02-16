@@ -14,7 +14,7 @@ Telegram AI assistant. User signs in, picks Telegram, pays ($20/mo + 48h trial),
 - **Provisioning**: Direct HTTP calls to infra API. No worker, no job queue.
 - **LLM providers**: Anthropic, OpenAI, Google. Shared keys + BYOK via Vercel AI Gateway.
 - **Payments**: Stripe Checkout subscription. 48h free trial. $10 credits on first purchase.
-- **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true`, `MOCK_TELEGRAM=true`
+- **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true`
 
 ## Repo Structure
 ```
@@ -74,8 +74,7 @@ DELETE /api-keys/{provider}           — remove key (triggers reprovision)
 
 GET    /usage                         — daily message stats
 
-POST   /webhooks/twilio/whatsapp      — Twilio inbound (signature validated)
-POST   /webhooks/telegram             — Telegram inbound (secret token validated)
+POST   /webhooks/twilio/whatsapp      — Twilio inbound (signature validated, paused)
 POST   /webhooks/stripe               — Stripe events (signature validated)
 ```
 
@@ -98,7 +97,7 @@ See `backend-infra/API.md` for full spec.
 
 ## Request Flows
 
-**Telegram inbound**: Webhook validates secret token → lookup user by telegram_username → check assistant READY → return immediately → background task calls Openclaw pod (`/v1/chat/completions` with last 20 messages) → send reply async (Telegram Bot API). No timeout.
+**Telegram inbound**: OpenClaw pod handles Telegram natively via its built-in telegram plugin. The pod receives messages directly using the user's @BotFather bot token (long polling), processes them through the LLM, and replies via Telegram Bot API. No backend relay needed.
 
 **Provisioning**: POST /assistants → validate subscription → call infra API `/provision` with user keys + telegram config → infra API creates k8s Deployment, Service, ConfigMap, Secret, PVC, CiliumNetworkPolicy → status=READY.
 
@@ -132,7 +131,7 @@ Model changes trigger reprovisioning (PATCH /assistants → deprovision old + pr
 ## Security
 
 - Stripe: `stripe.Webhook.construct_event()` signature validation
-- Telegram: `X-Telegram-Bot-Api-Secret-Token` header validation
+- Telegram: OpenClaw handles natively per pod (per-user bot token, no shared bot)
 - Twilio: HMAC-SHA1 signature validation (WhatsApp, paused)
 - Auth: Supabase JWT on every API request (middleware)
 - Encryption: Fernet for API keys + bot tokens
@@ -149,7 +148,7 @@ cd backend && uv sync
 #   DEV_USER_ID=<uuid>              — bypass Google OAuth
 #   MOCK_CONTAINERS=true            — skip infra API calls
 #   MOCK_STRIPE=true                — skip subscription check
-#   MOCK_TWILIO=true MOCK_TELEGRAM=true
+#   MOCK_TWILIO=true
 uv run uvicorn app.main:app --reload --port 8000
 
 # Frontend (set NEXT_PUBLIC_DEV_MODE=true in frontend/.env.local):
