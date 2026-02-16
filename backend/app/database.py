@@ -4,9 +4,13 @@ Uses Supabase REST API instead of direct Postgres connection.
 All CRUD operations go through /rest/v1/ endpoints.
 """
 
+import logging
+
 import httpx
 
 from app.config import settings
+
+logger = logging.getLogger("yourclaw.database")
 
 
 class SupabaseClient:
@@ -85,6 +89,8 @@ class SupabaseClient:
                 headers=self.headers,
                 json=data,
             )
+            if resp.status_code >= 400:
+                logger.error(f"Supabase INSERT {table} failed ({resp.status_code}): {resp.text}")
             resp.raise_for_status()
             result = resp.json()
             return result[0] if result else {}
