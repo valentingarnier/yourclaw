@@ -341,6 +341,52 @@ class ClawClient:
             pod_ip=pod.status.get("podIP"),
         )
 
+    async def list_claws(self) -> list[ClawStatus]:
+        """List all running claw instances."""
+        deployments = await Deployment.list(
+            namespace=NAMESPACE,
+            label_selector={"app": "yourclaw", "component": "claw"},
+        )
+        results = []
+        for deploy in deployments:
+            labels = deploy.metadata.get("labels", {})
+            user_id = labels.get("user-id", "")
+            claw_id = labels.get("claw-id", "")
+
+            pods = await kr8s.asyncio.get(
+                "pods", namespace=NAMESPACE, label_selector={"claw-id": claw_id},
+            )
+            if pods:
+                pod = pods[0]
+                phase = pod.status.get("phase")
+                ready = phase == "Running" and all(
+                    cs.get("ready", False)
+                    for cs in (pod.status.get("containerStatuses") or [])
+                )
+                results.append(ClawStatus(
+                    user_id=user_id,
+                    claw_id=claw_id,
+                    ready=ready,
+                    pod_phase=phase,
+                    node_name=pod.spec.get("nodeName"),
+                    pod_ip=pod.status.get("podIP"),
+                ))
+            else:
+                results.append(ClawStatus(user_id, claw_id, False, None, None, None))
+
+        return results
+
+    async def get_claw_logs(self, user_id: str, claw_id: str, tail: int = 100) -> str:
+        """Get logs from a claw's pod."""
+        pods = await kr8s.asyncio.get(
+            "pods", namespace=NAMESPACE,
+            label_selector={"claw-id": claw_id, "user-id": user_id},
+        )
+        if not pods:
+            return ""
+        pod = pods[0]
+        return await pod.logs(tail_lines=tail)
+
     async def update_claw_config(
         self,
         user_id: str,

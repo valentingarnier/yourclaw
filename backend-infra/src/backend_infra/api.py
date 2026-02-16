@@ -94,6 +94,30 @@ async def provision(req: ProvisionRequest):
     }
 
 
+@app.get("/claws", dependencies=[Depends(verify_key)])
+async def list_claws():
+    claws = await claw.list_claws()
+    return [
+        {
+            "user_id": c.user_id,
+            "claw_id": c.claw_id,
+            "ready": c.ready,
+            "pod_phase": c.pod_phase,
+            "node_name": c.node_name,
+            "pod_ip": c.pod_ip,
+        }
+        for c in claws
+    ]
+
+
+@app.get("/claws/{user_id}/{claw_id}/logs", dependencies=[Depends(verify_key)])
+async def get_claw_logs(user_id: str, claw_id: str, tail: int = 100):
+    logs = await claw.get_claw_logs(user_id, claw_id, tail=tail)
+    if not logs:
+        raise HTTPException(status_code=404, detail="No pods found for this claw")
+    return {"user_id": user_id, "claw_id": claw_id, "logs": logs}
+
+
 @app.post("/deprovision", dependencies=[Depends(verify_key)])
 async def deprovision(req: DeprovisionRequest):
     await claw.deprovision_claw(req.user_id, req.claw_id)

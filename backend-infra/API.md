@@ -39,7 +39,7 @@ Creates: Deployment, Service, ConfigMap, Secret, PVC (10Gi persistent volume), C
 | `openai_key` | string | no | `""` | OpenAI API key |
 | `google_key` | string | no | `""` | Google API key |
 | `ai_gateway_key` | string | no | `""` | Vercel AI Gateway key (routes to all providers) |
-| `model` | string | no | `anthropic/claude-sonnet-4-5-20250929` | LLM model identifier |
+| `model` | string | no | `anthropic/claude-sonnet-4.5` | LLM model identifier |
 | `system_instructions` | string \| null | no | Default personality | Custom system prompt (stored as SOUL.md) |
 | `telegram_bot_token` | string | no | `""` | Telegram bot token for channel support |
 | `telegram_allow_from` | string[] | no | `[]` | Telegram usernames/IDs allowed to message the bot |
@@ -54,7 +54,7 @@ curl -X POST http://142.132.244.217/provision \
     "user_id": "user-abc",
     "claw_id": "claw-1",
     "ai_gateway_key": "vck_...",
-    "model": "anthropic/claude-sonnet-4-5-20250929",
+    "model": "anthropic/claude-sonnet-4.5",
     "telegram_bot_token": "123456:ABC...",
     "telegram_allow_from": ["myusername"]
   }'
@@ -131,6 +131,61 @@ curl -X POST http://142.132.244.217/deprovision-user \
   "status": "deprovisioned",
   "user_id": "user-abc"
 }
+```
+
+---
+
+## GET /claws
+
+List all running claw instances.
+
+**Response:**
+```json
+[
+  {
+    "user_id": "user-abc",
+    "claw_id": "claw-1",
+    "ready": true,
+    "pod_phase": "Running",
+    "node_name": "node-1",
+    "pod_ip": "10.42.0.5"
+  }
+]
+```
+
+**Example:**
+```bash
+curl -s -X GET http://142.132.244.217/claws \
+  -H "Host: api.yourclaw.dev" \
+  -H "Authorization: Bearer $API_KEY" | python3 -m json.tool
+```
+
+---
+
+## GET /claws/{user_id}/{claw_id}/logs
+
+Get pod logs for a specific claw instance.
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tail` | int | `100` | Number of lines from the end of the logs |
+
+**Response:**
+```json
+{
+  "user_id": "user-abc",
+  "claw_id": "claw-1",
+  "logs": "..."
+}
+```
+
+**Example:**
+```bash
+curl -s -X GET "http://142.132.244.217/claws/user-abc/claw-1/logs?tail=50" \
+  -H "Host: api.yourclaw.dev" \
+  -H "Authorization: Bearer $API_KEY" | python3 -m json.tool
 ```
 
 ---

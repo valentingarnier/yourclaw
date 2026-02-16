@@ -87,6 +87,8 @@ GET    /health                        — health check (no auth)
 POST   /provision                     — create/update OpenClaw pod (idempotent)
 POST   /deprovision                   — destroy single claw instance
 POST   /deprovision-user              — destroy ALL claw instances for a user
+GET    /claws                         — list all running claw instances
+GET    /claws/{user_id}/{claw_id}/logs — get pod logs (?tail=N)
 ```
 
 All endpoints (except /health) require `Authorization: Bearer <YOURCLAW_API_KEY>`.
