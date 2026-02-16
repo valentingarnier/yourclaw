@@ -83,7 +83,6 @@ export interface UserProfile {
   email: string;
   phone: string | null;
   channel: string | null; // "WHATSAPP" | "TELEGRAM"
-  telegram_username: string | null;
   telegram_connected: boolean;
   subscription_status: string | null;
   assistant_status: string | null;
@@ -185,21 +184,21 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
 export const api = {
   getMe: () => apiGet<UserProfile>("/api/v1/users/me"),
   setPhone: (phone: string) => apiPost<UserProfile>("/api/v1/users/me/phone", { phone }),
-  setChannel: (channel: string, phone?: string, telegramUsername?: string) =>
+  setChannel: (channel: string, phone?: string, telegram_username?: string) =>
     apiPost<UserProfile>("/api/v1/users/me/channel", {
       channel,
       phone: phone || undefined,
-      telegram_username: telegramUsername || undefined,
+      telegram_username: telegram_username || undefined,
     }),
   getAssistant: () => apiGet<AssistantResponse>("/api/v1/assistants"),
   createAssistant: (data?: {
     model?: string;
     telegram_bot_token?: string;
-    telegram_allow_from?: string[];
+    telegram_username?: string;
   }) => apiPost<{ status: string; model: string; claw_id: string | null }>("/api/v1/assistants", {
     model: data?.model || DEFAULT_MODEL,
     telegram_bot_token: data?.telegram_bot_token || undefined,
-    telegram_allow_from: data?.telegram_allow_from || undefined,
+    telegram_username: data?.telegram_username || undefined,
   }),
   updateAssistant: (model: string) => apiPatch<AssistantResponse>("/api/v1/assistants", { model }),
   deleteAssistant: () => apiDelete("/api/v1/assistants"),

@@ -110,6 +110,19 @@ async def list_claws():
     ]
 
 
+@app.get("/claws/{user_id}/{claw_id}", dependencies=[Depends(verify_key)])
+async def claw_info(user_id: str, claw_id: str):
+    status = await claw.get_claw_status(user_id, claw_id)
+    return {
+        "user_id": status.user_id,
+        "claw_id": status.claw_id,
+        "ready": status.ready,
+        "pod_phase": status.pod_phase,
+        "node_name": status.node_name,
+        "pod_ip": status.pod_ip,
+    }
+
+
 @app.get("/claws/{user_id}/{claw_id}/logs", dependencies=[Depends(verify_key)])
 async def get_claw_logs(user_id: str, claw_id: str, tail: int = 100):
     logs = await claw.get_claw_logs(user_id, claw_id, tail=tail)

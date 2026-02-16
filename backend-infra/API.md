@@ -1,14 +1,14 @@
 # YourClaw Control Plane API
 
-**Base URL:** `http://api.yourclaw.dev` (Load Balancer IP: `142.132.244.217`)
+**Base URL:** `https://infra.api.yourclaw.dev`
+
+**Swagger:** `https://infra.api.yourclaw.dev/docs`
 
 **Auth:** All endpoints except `/health` require a Bearer token in the `Authorization` header.
 
 ```
 Authorization: Bearer <API_KEY>
 ```
-
-**DNS not configured yet.** All curl examples use the LB IP directly with `Host: api.yourclaw.dev` header for routing.
 
 ---
 
@@ -41,13 +41,11 @@ Creates: Deployment, Service, ConfigMap, Secret, PVC (10Gi persistent volume), C
 | `ai_gateway_key` | string | no | `""` | Vercel AI Gateway key (routes to all providers) |
 | `model` | string | no | `anthropic/claude-sonnet-4.5` | LLM model identifier |
 | `system_instructions` | string \| null | no | Default personality | Custom system prompt (stored as SOUL.md) |
-| `telegram_bot_token` | string | no | `""` | Telegram bot token for channel support |
-| `telegram_allow_from` | string[] | no | `[]` | Telegram usernames/IDs allowed to message the bot |
+| `telegram_bot_token` | string | no | `""` | Telegram bot token for channel support (open DM policy) |
 
 **Example:**
 ```bash
-curl -X POST http://142.132.244.217/provision \
-  -H "Host: api.yourclaw.dev" \
+curl -X POST https://infra.api.yourclaw.dev/provision \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -55,8 +53,7 @@ curl -X POST http://142.132.244.217/provision \
     "claw_id": "claw-1",
     "ai_gateway_key": "vck_...",
     "model": "anthropic/claude-sonnet-4.5",
-    "telegram_bot_token": "123456:ABC...",
-    "telegram_allow_from": ["myusername"]
+    "telegram_bot_token": "123456:ABC..."
   }'
 ```
 
@@ -88,8 +85,7 @@ Tear down a single claw instance. Deletes all associated resources (Deployment, 
 
 **Example:**
 ```bash
-curl -X POST http://142.132.244.217/deprovision \
-  -H "Host: api.yourclaw.dev" \
+curl -X POST https://infra.api.yourclaw.dev/deprovision \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"user_id": "user-abc", "claw_id": "claw-1"}'
@@ -118,8 +114,7 @@ Tear down ALL claw instances for a user. Finds and deletes every resource labele
 
 **Example:**
 ```bash
-curl -X POST http://142.132.244.217/deprovision-user \
-  -H "Host: api.yourclaw.dev" \
+curl -X POST https://infra.api.yourclaw.dev/deprovision-user \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"user_id": "user-abc"}'
@@ -155,8 +150,7 @@ List all running claw instances.
 
 **Example:**
 ```bash
-curl -s -X GET http://142.132.244.217/claws \
-  -H "Host: api.yourclaw.dev" \
+curl -s -X GET https://infra.api.yourclaw.dev/claws \
   -H "Authorization: Bearer $API_KEY" | python3 -m json.tool
 ```
 
@@ -183,8 +177,7 @@ Get pod logs for a specific claw instance.
 
 **Example:**
 ```bash
-curl -s -X GET "http://142.132.244.217/claws/user-abc/claw-1/logs?tail=50" \
-  -H "Host: api.yourclaw.dev" \
+curl -s -X GET "https://infra.api.yourclaw.dev/claws/user-abc/claw-1/logs?tail=50" \
   -H "Authorization: Bearer $API_KEY" | python3 -m json.tool
 ```
 

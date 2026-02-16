@@ -8,10 +8,10 @@ Telegram AI assistant. User signs in, picks Telegram, pays ($20/mo + 48h trial),
 - **Backend**: FastAPI — frontend never talks to Supabase directly for data
 - **Frontend**: Next.js App Router + Tailwind + Catalyst UI
 - **Infra**: k3s on Hetzner. One pod per user. Separate infra API handles provisioning.
-- **Telegram**: Per-user bot (user provides their own @BotFather token), route by `telegram_username`. Async Bot API replies.
+- **Telegram**: Per-user bot (user provides their own @BotFather token), open DM policy (bot token is the access control). Async Bot API replies.
 - **WhatsApp**: Paused (Coming Soon). Single Twilio number, route by sender phone.
 - **Openclaw API**: `POST /v1/chat/completions` on port 18789 per pod (OpenAI-compatible)
-- **Provisioning**: Direct HTTP calls to infra API. No worker, no job queue.
+- **Provisioning**: Direct HTTPS calls to infra API. No worker, no job queue.
 - **LLM providers**: Anthropic, OpenAI, Google. Shared keys + BYOK via Vercel AI Gateway.
 - **Payments**: Stripe Checkout subscription. 48h free trial. $10 credits on first purchase.
 - **Mock mode**: `MOCK_TWILIO=true`, `MOCK_CONTAINERS=true`, `MOCK_STRIPE=true`
@@ -37,7 +37,7 @@ Telegram AI assistant. User signs in, picks Telegram, pays ($20/mo + 48h trial),
 
 Tables in `public` schema (auth via Supabase `auth.users`):
 
-- **user_phones**: user_id, channel (WHATSAPP|TELEGRAM), phone_e164 (nullable), telegram_username, telegram_chat_id, telegram_bot_token_encrypted
+- **user_phones**: user_id, channel (WHATSAPP|TELEGRAM), phone_e164 (nullable), telegram_chat_id, telegram_bot_token_encrypted
 - **assistants**: user_id, status (NONE|PROVISIONING|READY|ERROR), claw_id, model
 - **messages**: user_id, direction (INBOUND|OUTBOUND), body, channel, twilio_sid, telegram_message_id
 - **usage_daily**: user_id, date, inbound_count, outbound_count (UNIQUE user_id+date)
@@ -80,7 +80,7 @@ POST   /webhooks/stripe               — Stripe events (signature validated)
 
 ## Infra API
 
-Separate service running on the k3s control plane. Backend calls it via HTTP.
+Separate service running on the k3s control plane. Backend calls it via HTTPS (`https://infra.api.yourclaw.dev`).
 
 ```
 GET    /health                        — health check (no auth)
@@ -88,12 +88,13 @@ POST   /provision                     — create/update OpenClaw pod (idempotent
 POST   /deprovision                   — destroy single claw instance
 POST   /deprovision-user              — destroy ALL claw instances for a user
 GET    /claws                         — list all running claw instances
+GET    /claws/{user_id}/{claw_id}     — get pod status (ready, phase, node, IP)
 GET    /claws/{user_id}/{claw_id}/logs — get pod logs (?tail=N)
 ```
 
 All endpoints (except /health) require `Authorization: Bearer <YOURCLAW_API_KEY>`.
 
-Config: `INFRA_API_URL` (IP), `INFRA_API_HOST` (Host header for routing), `YOURCLAW_API_KEY` (Bearer token).
+Config: `INFRA_API_URL` (`https://infra.api.yourclaw.dev`), `YOURCLAW_API_KEY` (Bearer token).
 
 See `backend-infra/API.md` for full spec.
 
@@ -101,7 +102,7 @@ See `backend-infra/API.md` for full spec.
 
 **Telegram inbound**: OpenClaw pod handles Telegram natively via its built-in telegram plugin. The pod receives messages directly using the user's @BotFather bot token (long polling), processes them through the LLM, and replies via Telegram Bot API. No backend relay needed.
 
-**Provisioning**: POST /assistants → validate subscription → call infra API `/provision` with user keys + telegram config → infra API creates k8s Deployment, Service, ConfigMap, Secret, PVC, CiliumNetworkPolicy → status=READY.
+**Provisioning**: POST /assistants → validate subscription → call infra API `/provision` with user keys + telegram bot token → infra API creates k8s Deployment, Service, ConfigMap, Secret, PVC, CiliumNetworkPolicy → status=PROVISIONING until pod is ready. GET /assistants checks real pod status via infra API.
 
 **Stripe**: Checkout session → webhook `checkout.session.completed` → create subscription + credits. User then creates assistant from dashboard. Also handles `invoice.payment_succeeded/failed`, `customer.subscription.deleted/updated`.
 
@@ -166,7 +167,7 @@ No worker needed — provisioning is synchronous via infra API.
 
 - Backend: Render (`https://yourclaw.onrender.com`)
 - Frontend: Vercel (`https://www.yourclaw.dev`)
-- Infra API: Hetzner k3s (`INFRA_API_URL` env var)
+- Infra API: Hetzner k3s (`https://infra.api.yourclaw.dev`)
 - Stripe Price ID: `price_1SyZSbCFAYv3UO1LWxf67wDW`
 - GA4: `G-2E55TEMF7X`
 - Emails: Resend (`hello@yourclaw.dev`)

@@ -38,9 +38,8 @@ export default function OnboardingPage() {
         return;
       }
     } else {
-      const usernameRegex = /^@?[a-zA-Z0-9_]{5,32}$/;
-      if (!usernameRegex.test(telegramUsername)) {
-        setError("Please enter a valid Telegram username (5-32 characters)");
+      if (!telegramUsername.trim()) {
+        setError("Please enter your Telegram username");
         return;
       }
     }
@@ -50,7 +49,7 @@ export default function OnboardingPage() {
       await api.setChannel(
         channel,
         channel === "WHATSAPP" ? phone : undefined,
-        channel === "TELEGRAM" ? telegramUsername : undefined,
+        channel === "TELEGRAM" ? telegramUsername.replace(/^@/, "") : undefined,
       );
       router.push("/dashboard");
     } catch (err) {
@@ -143,23 +142,20 @@ export default function OnboardingPage() {
                 </div>
               ) : (
                 <div>
-                  <label htmlFor="telegram" className="block text-sm font-medium text-zinc-700 mb-2">
+                  <label htmlFor="telegram-username" className="block text-sm font-medium text-zinc-700 mb-2">
                     Telegram Username
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-base">@</span>
-                    <input
-                      type="text"
-                      id="telegram"
-                      value={telegramUsername}
-                      onChange={(e) => setTelegramUsername(e.target.value.replace(/^@/, ""))}
-                      placeholder="username"
-                      className="w-full pl-8 pr-4 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition text-zinc-900 placeholder:text-zinc-400"
-                      required
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    id="telegram-username"
+                    value={telegramUsername}
+                    onChange={(e) => setTelegramUsername(e.target.value)}
+                    placeholder="@yourusername"
+                    className="w-full px-4 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition text-zinc-900 placeholder:text-zinc-400"
+                    required
+                  />
                   <p className="mt-2 text-xs text-zinc-500">
-                    Your Telegram username (without the @). Find it in Telegram Settings.
+                    Your Telegram username (found in Settings). Only you will be able to message the bot.
                   </p>
                 </div>
               )}

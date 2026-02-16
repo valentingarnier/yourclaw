@@ -29,7 +29,6 @@ class ProviderKeys:
     openai: str = ""
     google: str = ""
     ai_gateway: str = ""
-    brave: str = ""
 
 
 @dataclass
@@ -41,14 +40,6 @@ class TelegramChannelConfig:
 @dataclass
 class ChannelsConfig:
     telegram: TelegramChannelConfig | None = None
-
-
-@dataclass
-class McpServer:
-    name: str
-    command: str
-    args: list[str] = field(default_factory=list)
-    env: dict[str, str] = field(default_factory=dict)
 
 
 DEFAULT_SYSTEM_INSTRUCTIONS = """\
@@ -74,7 +65,6 @@ class OpenclawConfig:
     gateway: GatewayConfig
     model: ModelConfig = field(default_factory=ModelConfig)
     provider_keys: ProviderKeys = field(default_factory=ProviderKeys)
-    mcp_servers: list[McpServer] = field(default_factory=list)
     channels: ChannelsConfig | None = None
     system_instructions: str = DEFAULT_SYSTEM_INSTRUCTIONS
 
@@ -120,7 +110,7 @@ def build_openclaw_json(config: OpenclawConfig) -> dict:
                 "enabled": True,
                 "botToken": tc.bot_token,
                 "dmPolicy": "allowlist",
-                "allowFrom": tc.allow_from,
+                "allowFrom": tc.allow_from if tc.allow_from else ["*"],
                 "groupPolicy": "allowlist",
                 "streamMode": "partial",
             }
@@ -143,19 +133,6 @@ def build_openclaw_json(config: OpenclawConfig) -> dict:
         "lastTouchedAt": now,
     }
 
-    # MCP servers (Google integrations, etc.)
-    if config.mcp_servers:
-        mcp = {}
-        for server in config.mcp_servers:
-            entry: dict = {
-                "command": server.command,
-                "args": server.args,
-            }
-            if server.env:
-                entry["env"] = server.env
-            mcp[server.name] = entry
-        result["mcpServers"] = mcp
-
     return result
 
 
@@ -168,7 +145,6 @@ def build_env_vars(config: OpenclawConfig) -> dict[str, str]:
         "OPENAI_API_KEY": config.provider_keys.openai,
         "GOOGLE_API_KEY": config.provider_keys.google,
         "AI_GATEWAY_API_KEY": config.provider_keys.ai_gateway,
-        "BRAVE_API_KEY": config.provider_keys.brave,
     }
 
     for var, value in key_map.items():

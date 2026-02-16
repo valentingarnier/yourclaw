@@ -113,7 +113,7 @@ export default function DashboardPage() {
         setSelectedModel(assistantData.model);
       }
 
-      if (!userData.phone && !userData.telegram_username) {
+      if (!userData.phone && userData.channel !== "TELEGRAM") {
         router.push("/onboarding");
         return;
       }
@@ -263,7 +263,7 @@ export default function DashboardPage() {
             <Avatar initials={userInitials} className="size-8 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900" />
             <SidebarLabel className="flex flex-col items-start">
               <span className="text-sm font-medium">{user?.email?.split("@")[0]}</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? `@${user?.telegram_username}` : user?.phone}</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? "Telegram" : user?.phone}</span>
             </SidebarLabel>
             <ChevronUpIcon className="ml-auto size-4" />
           </DropdownButton>
@@ -368,8 +368,8 @@ function AssistantSection({
     (user?.channel as "WHATSAPP" | "TELEGRAM") || "TELEGRAM"
   );
   const [newPhone, setNewPhone] = useState(user?.phone || "");
-  const [newTelegramUsername, setNewTelegramUsername] = useState(user?.telegram_username || "");
   const [newBotToken, setNewBotToken] = useState("");
+  const [newTelegramUsername, setNewTelegramUsername] = useState("");
   const [showBotTutorial, setShowBotTutorial] = useState(false);
   const [channelSaving, setChannelSaving] = useState(false);
   const [channelError, setChannelError] = useState<string | null>(null);
@@ -383,27 +383,28 @@ function AssistantSection({
         return;
       }
     } else {
-      if (!newTelegramUsername || newTelegramUsername.length < 5) {
-        setChannelError("Enter a valid Telegram username (5-32 chars)");
-        return;
-      }
       if (!newBotToken || !newBotToken.includes(":")) {
         setChannelError("Enter a valid Telegram bot token (from @BotFather)");
+        return;
+      }
+      if (!newTelegramUsername.trim()) {
+        setChannelError("Enter your Telegram username so only you can message the bot");
         return;
       }
     }
     try {
       setChannelSaving(true);
+      const username = newTelegramUsername.replace(/^@/, "").trim();
       await api.setChannel(
         newChannel,
         newChannel === "WHATSAPP" ? newPhone : undefined,
-        newChannel === "TELEGRAM" ? newTelegramUsername.replace(/^@/, "") : undefined,
+        newChannel === "TELEGRAM" ? username : undefined,
       );
-      // Channel saved, now create the assistant with bot token
+      // Channel saved, now create the assistant with bot token + username
       await api.createAssistant({
         model: selectedModel,
         telegram_bot_token: newChannel === "TELEGRAM" ? newBotToken : undefined,
-        telegram_allow_from: newChannel === "TELEGRAM" ? [newTelegramUsername.replace(/^@/, "")] : undefined,
+        telegram_username: newChannel === "TELEGRAM" ? username : undefined,
       });
       onRefresh();
     } catch (err) {
@@ -421,19 +422,12 @@ function AssistantSection({
         setChannelError("Enter a valid phone (e.g., +15551234567)");
         return;
       }
-    } else {
-      const usernameRegex = /^@?[a-zA-Z0-9_]{5,32}$/;
-      if (!usernameRegex.test(newTelegramUsername)) {
-        setChannelError("Enter a valid Telegram username (5-32 chars)");
-        return;
-      }
     }
     try {
       setChannelSaving(true);
       await api.setChannel(
         newChannel,
         newChannel === "WHATSAPP" ? newPhone : undefined,
-        newChannel === "TELEGRAM" ? newTelegramUsername.replace(/^@/, "") : undefined,
       );
       setEditingChannel(false);
       onRefresh();
@@ -576,7 +570,7 @@ function AssistantSection({
                       Your assistant is ready! Open your bot on Telegram to start chatting.
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Only messages from <span className="font-medium">@{user?.telegram_username}</span> are allowed.
+                      Only messages from your Telegram account are allowed.
                     </p>
                   </div>
                 </div>
@@ -678,21 +672,6 @@ function AssistantSection({
               </>
             ) : (
               <div className="space-y-4">
-                {/* Telegram username */}
-                <div>
-                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your Telegram username</p>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">@</span>
-                    <input
-                      type="text"
-                      value={newTelegramUsername}
-                      onChange={(e) => setNewTelegramUsername(e.target.value.replace(/^@/, ""))}
-                      placeholder="username"
-                      className="w-full pl-7 pr-3 py-2.5 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
-                    />
-                  </div>
-                </div>
-
                 {/* Bot token */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -712,6 +691,19 @@ function AssistantSection({
                     placeholder="123456789:ABCdefGhIjKlMnOpQrStUvWxYz"
                     className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm font-mono text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
                   />
+                </div>
+
+                {/* Telegram username */}
+                <div>
+                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your Telegram username</p>
+                  <input
+                    type="text"
+                    value={newTelegramUsername}
+                    onChange={(e) => setNewTelegramUsername(e.target.value)}
+                    placeholder="@yourusername"
+                    className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                  />
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Only this account will be able to message the bot.</p>
                 </div>
 
                 {/* BotFather tutorial */}
@@ -790,7 +782,7 @@ function AssistantSection({
               <Button plain onClick={() => {
                 setNewChannel((user?.channel as "WHATSAPP" | "TELEGRAM") || "WHATSAPP");
                 setNewPhone(user?.phone || "");
-                setNewTelegramUsername(user?.telegram_username || "");
+                setNewTelegramUsername("");
                 setChannelError(null);
                 setEditingChannel(true);
               }}>
@@ -811,13 +803,8 @@ function AssistantSection({
                   Telegram
                 </button>
               </div>
-              {newChannel === "WHATSAPP" ? (
+              {newChannel === "WHATSAPP" && (
                 <input type="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+15551234567" className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white" />
-              ) : (
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">@</span>
-                  <input type="text" value={newTelegramUsername} onChange={(e) => setNewTelegramUsername(e.target.value.replace(/^@/, ""))} placeholder="username" className="w-full pl-7 pr-3 py-2 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white" />
-                </div>
               )}
               {channelError && <p className="text-sm text-red-600 dark:text-red-400">{channelError}</p>}
               <div className="flex gap-2">
@@ -836,7 +823,7 @@ function AssistantSection({
               </div>
               <div>
                 <p className="text-sm font-medium text-zinc-950 dark:text-white">{user?.channel === "TELEGRAM" ? "Telegram" : "WhatsApp"}</p>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? `@${user?.telegram_username}` : user?.phone}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? "Telegram" : user?.phone}</p>
               </div>
             </div>
           )}
@@ -943,7 +930,7 @@ function UsageSection({ usage, user }: { usage: UsageResponse | null; user: User
           </div>
           <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? "Telegram" : "WhatsApp"}</p>
-            <p className="text-sm font-medium text-zinc-950 dark:text-white mt-1">{user?.channel === "TELEGRAM" ? `@${user?.telegram_username}` : user?.phone}</p>
+            <p className="text-sm font-medium text-zinc-950 dark:text-white mt-1">{user?.channel === "TELEGRAM" ? "Telegram" : user?.phone}</p>
           </div>
           <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">Subscription</p>

@@ -33,7 +33,6 @@ CLAW_ID = "claw-1"
 ai_gateway_key = os.environ.get("AI_GATEWAY_API_KEY", "")
 anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
 telegram_bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-telegram_allow_from = os.environ.get("TELEGRAM_ALLOW_FROM", "")
 kubeconfig = os.environ.get("KUBECONFIG", "")
 
 if not ai_gateway_key and not anthropic_key:
@@ -47,14 +46,9 @@ if not kubeconfig:
 # Telegram channel (optional)
 channels = None
 if telegram_bot_token:
-    if not telegram_allow_from:
-        print("TELEGRAM_ALLOW_FROM required when TELEGRAM_BOT_TOKEN is set")
-        sys.exit(1)
-    allow_from = [u.strip() for u in telegram_allow_from.split(",") if u.strip()]
     channels = ChannelsConfig(
         telegram=TelegramChannelConfig(
             bot_token=telegram_bot_token,
-            allow_from=allow_from,
         ),
     )
 
@@ -92,7 +86,7 @@ async def main():
     provider = "AI Gateway" if ai_gateway_key else "Anthropic direct"
     print(f"Provider:  {provider}")
     print(f"Service:   {result.service_dns}:{result.gateway_port}")
-    print(f"Telegram:  {'allowlist ' + str(allow_from) if telegram_bot_token else 'disabled'}")
+    print(f"Telegram:  {'enabled (open DM)' if telegram_bot_token else 'disabled'}")
     print()
     print("Verify with:")
     print(f"  kubectl get deploy,svc,cm,secret,pvc,ciliumnetworkpolicy -l claw-id={CLAW_ID}")
