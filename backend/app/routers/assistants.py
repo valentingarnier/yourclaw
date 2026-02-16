@@ -50,8 +50,6 @@ async def _get_provision_keys(user_id: str) -> dict[str, str]:
             keys["anthropic_key"] = decrypted
         elif provider == "OPENAI":
             keys["openai_key"] = decrypted
-        elif provider == "GOOGLE":
-            keys["google_key"] = decrypted
 
     return keys
 

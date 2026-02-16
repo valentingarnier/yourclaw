@@ -22,8 +22,6 @@ class Settings(BaseSettings):
     # Shared LLM Keys
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    google_api_key: str = ""  # For Gemini
-
     # Web Search (Brave Search API)
     brave_api_key: str = ""  # For OpenClaw web search tool
 

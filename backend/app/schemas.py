@@ -44,9 +44,6 @@ AVAILABLE_MODELS = [
     "anthropic/claude-opus-4.6",
     "anthropic/claude-sonnet-4.5",
     "anthropic/claude-haiku-4.5",
-    # Google
-    "google/gemini-2.0-flash",
-    "google/gemini-2.0-flash-lite",
 ]
 DEFAULT_MODEL = "openai/gpt-5.2-codex"
 
