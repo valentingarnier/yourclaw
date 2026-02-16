@@ -29,7 +29,6 @@ class ProviderKeys:
     openai: str = ""
     google: str = ""
     ai_gateway: str = ""
-    brave: str = ""
 
 
 @dataclass
@@ -138,7 +137,7 @@ def build_openclaw_json(config: OpenclawConfig) -> dict:
                 "enabled": True,
                 "botToken": tc.bot_token,
                 "dmPolicy": "allowlist",
-                "allowFrom": tc.allow_from,
+                "allowFrom": tc.allow_from if tc.allow_from else ["*"],
                 "groupPolicy": "allowlist",
                 "streamMode": "partial",
             }
@@ -186,7 +185,6 @@ def build_env_vars(config: OpenclawConfig) -> dict[str, str]:
         "OPENAI_API_KEY": config.provider_keys.openai,
         "GOOGLE_API_KEY": config.provider_keys.google,
         "AI_GATEWAY_API_KEY": config.provider_keys.ai_gateway,
-        "BRAVE_API_KEY": config.provider_keys.brave,
     }
 
     for var, value in key_map.items():

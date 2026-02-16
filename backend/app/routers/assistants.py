@@ -58,17 +58,42 @@ async def _get_provision_keys(user_id: str) -> dict[str, str]:
 
 @router.get("", response_model=AssistantResponse)
 async def get_assistant(user_id: uuid.UUID = Depends(get_current_user)) -> AssistantResponse:
-    """Get current user's assistant status."""
+    """Get current user's assistant status.
+
+    When DB says READY or PROVISIONING, checks real pod status from infra API.
+    Updates DB if pod is not actually ready.
+    """
 
     row = await db.select("assistants", filters={"user_id": str(user_id)}, single=True)
 
     if not row:
         return AssistantResponse(status="NONE")
 
+    db_status = row["status"]
+    claw_id = row.get("claw_id")
+
+    # Check real pod status for READY/PROVISIONING states
+    if db_status in ("READY", "PROVISIONING") and claw_id:
+        try:
+            pod_status = await infra_api.get_status(_infra_user_id(user_id), claw_id)
+            pod_ready = pod_status.get("ready", False)
+
+            if db_status == "READY" and not pod_ready:
+                db_status = "PROVISIONING"
+            elif db_status == "PROVISIONING" and pod_ready:
+                db_status = "READY"
+                await db.update(
+                    "assistants",
+                    {"status": "READY", "updated_at": datetime.utcnow().isoformat()},
+                    {"user_id": str(user_id)},
+                )
+        except Exception as e:
+            logger.warning(f"Failed to check pod status for {claw_id}: {e}")
+
     return AssistantResponse(
-        status=row["status"],
+        status=db_status,
         model=row.get("model", DEFAULT_MODEL),
-        claw_id=row.get("claw_id"),
+        claw_id=claw_id,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -135,28 +160,24 @@ async def create_assistant(
             {"user_id": str(user_id), "status": "PROVISIONING", "model": model, "claw_id": claw_id},
         )
 
-    # Store telegram bot token if provided
+    # Store telegram bot token + username if provided
+    phone_update: dict = {}
     if body.telegram_bot_token:
-        await db.update(
-            "user_phones",
-            {"telegram_bot_token_encrypted": encrypt(body.telegram_bot_token)},
-            {"user_id": str(user_id)},
-        )
+        phone_update["telegram_bot_token_encrypted"] = encrypt(body.telegram_bot_token)
+    if body.telegram_username:
+        phone_update["telegram_username"] = body.telegram_username
+    if phone_update:
+        await db.update("user_phones", phone_update, {"user_id": str(user_id)})
 
-    # Build telegram_allow_from
-    telegram_allow_from = body.telegram_allow_from
-    if not telegram_allow_from:
-        phone_row = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
-        if phone_row and phone_row.get("telegram_username"):
-            telegram_allow_from = [phone_row["telegram_username"]]
-
-    # Get bot token (from input or stored)
+    # Get bot token + username (from input or stored)
+    phone_row = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
     telegram_bot_token = body.telegram_bot_token or ""
-    if not telegram_bot_token:
-        phone_row = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
-        if phone_row and phone_row.get("telegram_bot_token_encrypted"):
-            from app.services.encryption import decrypt
-            telegram_bot_token = decrypt(phone_row["telegram_bot_token_encrypted"])
+    if not telegram_bot_token and phone_row and phone_row.get("telegram_bot_token_encrypted"):
+        from app.services.encryption import decrypt
+        telegram_bot_token = decrypt(phone_row["telegram_bot_token_encrypted"])
+
+    telegram_username = body.telegram_username or (phone_row.get("telegram_username") if phone_row else None)
+    telegram_allow_from = [telegram_username] if telegram_username else None
 
     # Build API keys (shared + BYOK overrides)
     provision_keys = await _get_provision_keys(str(user_id))
@@ -230,16 +251,15 @@ async def update_assistant(
         except Exception as e:
             logger.warning(f"Failed to deprovision old claw {old_claw_id}: {e}")
 
-    # Get telegram info
+    # Get telegram bot token + username
     phone_row = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
     telegram_bot_token = ""
-    telegram_allow_from: list[str] = []
-    if phone_row:
-        if phone_row.get("telegram_bot_token_encrypted"):
-            from app.services.encryption import decrypt
-            telegram_bot_token = decrypt(phone_row["telegram_bot_token_encrypted"])
-        if phone_row.get("telegram_username"):
-            telegram_allow_from = [phone_row["telegram_username"]]
+    if phone_row and phone_row.get("telegram_bot_token_encrypted"):
+        from app.services.encryption import decrypt
+        telegram_bot_token = decrypt(phone_row["telegram_bot_token_encrypted"])
+
+    telegram_username = phone_row.get("telegram_username") if phone_row else None
+    telegram_allow_from = [telegram_username] if telegram_username else None
 
     provision_keys = await _get_provision_keys(str(user_id))
 

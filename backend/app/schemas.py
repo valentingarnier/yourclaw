@@ -11,7 +11,6 @@ class UserProfile(BaseModel):
     email: str
     phone: str | None = None
     channel: str | None = None  # WHATSAPP or TELEGRAM
-    telegram_username: str | None = None
     telegram_connected: bool = False  # True if telegram_chat_id is set
     subscription_status: str | None = None  # ACTIVE, PAST_DUE, CANCELED, or None
     assistant_status: str | None = None  # NONE, PROVISIONING, READY, ERROR
@@ -24,14 +23,12 @@ class PhoneInput(BaseModel):
 class ChannelInput(BaseModel):
     channel: str = Field("WHATSAPP", pattern=r"^(WHATSAPP|TELEGRAM)$")
     phone: str | None = Field(None, pattern=r"^\+[1-9]\d{1,14}$", description="E.164 format, required for WHATSAPP")
-    telegram_username: str | None = Field(None, description="Telegram username, required for TELEGRAM")
+    telegram_username: str | None = Field(None, description="Telegram username (without @), used for allowFrom")
 
     @model_validator(mode="after")
     def validate_channel_fields(self):
         if self.channel == "WHATSAPP" and not self.phone:
             raise ValueError("Phone number required for WhatsApp channel")
-        if self.channel == "TELEGRAM" and not self.telegram_username:
-            raise ValueError("Telegram username required for Telegram channel")
         return self
 
 
@@ -65,7 +62,7 @@ class AssistantResponse(BaseModel):
 class AssistantCreateInput(BaseModel):
     model: str = Field(default=DEFAULT_MODEL, description="OpenClaw model identifier")
     telegram_bot_token: str | None = Field(None, description="Per-user Telegram bot token from @BotFather")
-    telegram_allow_from: list[str] = Field(default_factory=list, description="Telegram usernames allowed to message the bot")
+    telegram_username: str | None = Field(None, description="Telegram username for allowFrom (without @)")
 
 
 class AssistantUpdateInput(BaseModel):

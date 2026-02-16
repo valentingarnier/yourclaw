@@ -23,8 +23,7 @@ async def get_me(user_id: uuid.UUID = Depends(get_current_user)) -> UserProfile:
     phone_row = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
     phone = phone_row["phone_e164"] if phone_row else None
     channel = phone_row["channel"] if phone_row else None
-    telegram_username = phone_row.get("telegram_username") if phone_row else None
-    telegram_connected = bool(phone_row.get("telegram_chat_id")) if phone_row else False
+    telegram_connected = bool(phone_row.get("telegram_username")) if phone_row else False
 
     # Get subscription status
     sub_row = await db.select("subscriptions", filters={"user_id": str(user_id)}, single=True)
@@ -57,7 +56,6 @@ async def get_me(user_id: uuid.UUID = Depends(get_current_user)) -> UserProfile:
         email=email,
         phone=phone,
         channel=channel,
-        telegram_username=telegram_username,
         telegram_connected=telegram_connected,
         subscription_status=subscription_status,
         assistant_status=assistant_status,
@@ -93,19 +91,11 @@ async def set_channel(
     existing = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
     is_new_user = existing is None
 
-    # Normalize telegram username (strip @ prefix, lowercase)
-    tg_username = body.telegram_username
-    if tg_username and tg_username.startswith("@"):
-        tg_username = tg_username[1:]
-    if tg_username:
-        tg_username = tg_username.lower()
-
     data = {
         "user_id": str(user_id),
         "channel": body.channel,
         "phone_e164": body.phone if body.channel == "WHATSAPP" else None,
-        "telegram_username": tg_username if body.channel == "TELEGRAM" else None,
-        "telegram_chat_id": None,  # Reset on channel change; set when user messages bot
+        "telegram_username": body.telegram_username if body.channel == "TELEGRAM" else None,
     }
 
     await db.upsert("user_phones", data, on_conflict="user_id")

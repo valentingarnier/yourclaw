@@ -37,15 +37,11 @@ async def trigger_reprovisioning(user_id: str) -> bool:
     if not claw_id:
         return False
 
-    # Get telegram info
+    # Get telegram bot token
     phone_row = await db.select("user_phones", filters={"user_id": user_id}, single=True)
     telegram_bot_token = ""
-    telegram_allow_from: list[str] = []
-    if phone_row:
-        if phone_row.get("telegram_bot_token_encrypted"):
-            telegram_bot_token = decrypt(phone_row["telegram_bot_token_encrypted"])
-        if phone_row.get("telegram_username"):
-            telegram_allow_from = [phone_row["telegram_username"]]
+    if phone_row and phone_row.get("telegram_bot_token_encrypted"):
+        telegram_bot_token = decrypt(phone_row["telegram_bot_token_encrypted"])
 
     provision_keys = await _get_provision_keys(user_id)
 
@@ -57,7 +53,6 @@ async def trigger_reprovisioning(user_id: str) -> bool:
             claw_id=claw_id,
             model=model,
             telegram_bot_token=telegram_bot_token,
-            telegram_allow_from=telegram_allow_from,
             **provision_keys,
         )
         await db.update("assistants", {"status": "READY", "updated_at": datetime.utcnow().isoformat()}, {"user_id": user_id})

@@ -1,7 +1,9 @@
-"""HTTP client for the YourClaw infra API.
+"""HTTPS client for the YourClaw infra API.
 
 The infra API is a separate service that handles container provisioning
 and deprovisioning on the k8s cluster. This module calls its endpoints.
+
+Base URL: https://infra.api.yourclaw.dev
 """
 
 import hashlib
@@ -29,7 +31,6 @@ def infra_user_id(user_id: str | _uuid.UUID) -> str:
 
 def _headers() -> dict[str, str]:
     return {
-        "Host": settings.infra_api_host,
         "Authorization": f"Bearer {settings.yourclaw_api_key}",
         "Content-Type": "application/json",
     }
@@ -59,7 +60,6 @@ async def provision(
         ai_gateway_key: Vercel AI Gateway key (routes to all providers).
         system_instructions: Custom system prompt (stored as SOUL.md).
         telegram_bot_token: Per-user Telegram bot token from @BotFather.
-        telegram_allow_from: Telegram usernames allowed to message the bot.
 
     Returns:
         Response dict from infra API.
@@ -113,6 +113,20 @@ async def provision(
 
     logger.info(f"Provisioned {user_id}/{claw_id}: {data}")
     return data
+
+
+async def get_status(user_id: str, claw_id: str) -> dict:
+    """Get real-time pod status for a claw instance from the infra API."""
+    if settings.mock_containers:
+        logger.info(f"[Mock] Status {user_id}/{claw_id}")
+        return {"user_id": user_id, "claw_id": claw_id, "ready": True, "pod_phase": "Running"}
+
+    url = f"{settings.infra_api_url}/claws/{user_id}/{claw_id}"
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url, headers=_headers())
+        resp.raise_for_status()
+        return resp.json()
 
 
 async def deprovision(user_id: str, claw_id: str) -> dict:

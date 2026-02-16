@@ -48,7 +48,6 @@ class Settings(BaseSettings):
 
     # Infra API (separate provisioning service)
     infra_api_url: str = ""
-    infra_api_host: str = "api.yourclaw.dev"
     yourclaw_api_key: str = ""  # Bearer token for infra API
 
     # AI Gateway (Vercel)
@@ -63,7 +62,7 @@ class Settings(BaseSettings):
     # Dev Mode
     dev_user_id: str = ""  # Set to bypass auth for testing
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()
