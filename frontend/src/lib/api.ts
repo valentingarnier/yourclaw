@@ -93,19 +93,20 @@ export const TELEGRAM_BOT_USERNAME = "Yourclawdev_bot";
 
 // Available models for selection
 export const AVAILABLE_MODELS = [
-  // Anthropic
-  { id: "anthropic/claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic", comingSoon: false },
-  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic", comingSoon: false },
   // OpenAI
+  { id: "openai/gpt-5.2-codex", name: "GPT-5.2 Codex", description: "OpenAI's most capable", provider: "openai", comingSoon: false },
   { id: "openai/gpt-4o", name: "GPT-4o", description: "OpenAI's flagship model", provider: "openai", comingSoon: false },
   { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and affordable", provider: "openai", comingSoon: false },
+  // Anthropic
+  { id: "anthropic/claude-opus-4-6", name: "Claude Opus 4.6", description: "Most powerful", provider: "anthropic", comingSoon: false },
+  { id: "anthropic/claude-sonnet-4.5", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic", comingSoon: false },
+  { id: "anthropic/claude-haiku-4.5", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic", comingSoon: false },
   // Google
   { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Google's fast model", provider: "google", comingSoon: false },
   { id: "google/gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", description: "Lightweight and fast", provider: "google", comingSoon: false },
-  { id: "anthropic/claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Most powerful", provider: "anthropic", comingSoon: false },
 ] as const;
 
-export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";
+export const DEFAULT_MODEL = "openai/gpt-5.2-codex";
 
 export interface AssistantResponse {
   status: string;

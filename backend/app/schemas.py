@@ -39,18 +39,19 @@ class ChannelInput(BaseModel):
 
 # Available models for user selection
 AVAILABLE_MODELS = [
-    # Anthropic
-    "anthropic/claude-sonnet-4-5-20250929",
-    "anthropic/claude-opus-4-5-20251101",
-    "anthropic/claude-haiku-4-5-20251001",
     # OpenAI
+    "openai/gpt-5.2-codex",
     "openai/gpt-4o",
     "openai/gpt-4o-mini",
+    # Anthropic (Vercel AI Gateway IDs)
+    "anthropic/claude-opus-4-6",
+    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-haiku-4.5",
     # Google
     "google/gemini-2.0-flash",
     "google/gemini-2.0-flash-lite",
 ]
-DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = "openai/gpt-5.2-codex"
 
 
 class AssistantResponse(BaseModel):

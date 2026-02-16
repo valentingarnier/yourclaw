@@ -4,13 +4,27 @@ The infra API is a separate service that handles container provisioning
 and deprovisioning on the k8s cluster. This module calls its endpoints.
 """
 
+import hashlib
+import json
 import logging
+import uuid as _uuid
 
 import httpx
 
 from app.config import settings
 
 logger = logging.getLogger("yourclaw.infra_api")
+
+
+def infra_user_id(user_id: str | _uuid.UUID) -> str:
+    """Convert Supabase UUID to stable short numeric ID for infra API.
+
+    Uses SHA-256 hash truncated to 8 digits for collision resistance
+    while keeping IDs numeric-only (k8s label friendly).
+    Same UUID always produces the same ID.
+    """
+    h = hashlib.sha256(str(user_id).encode()).hexdigest()
+    return f"user-{int(h[:10], 16) % 10**8}"
 
 
 def _headers() -> dict[str, str]:
@@ -75,14 +89,25 @@ async def provision(
     if telegram_allow_from:
         payload["telegram_allow_from"] = telegram_allow_from
 
-    logger.info(f"Provisioning {user_id}/{claw_id} model={model}")
+    # Build a redacted copy for debug logging (never log secrets)
+    debug_payload = {
+        k: (
+            f"{v[:4]}...{v[-4:]}" if k in ("anthropic_key", "openai_key", "google_key", "ai_gateway_key", "telegram_bot_token") and isinstance(v, str) and len(v) > 8
+            else v
+        )
+        for k, v in payload.items()
+    }
+
+    url = f"{settings.infra_api_url}/provision"
+    logger.info(f"Provision POST {url}\n{json.dumps(debug_payload, indent=2)}")
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         resp = await client.post(
-            f"{settings.infra_api_url}/provision",
+            url,
             headers=_headers(),
             json=payload,
         )
+        logger.info(f"Provision response status={resp.status_code} body={resp.text}")
         resp.raise_for_status()
         data = resp.json()
 
@@ -96,14 +121,18 @@ async def deprovision(user_id: str, claw_id: str) -> dict:
         logger.info(f"[Mock] Deprovision {user_id}/{claw_id}")
         return {"status": "ok"}
 
+    url = f"{settings.infra_api_url}/deprovision"
+    deprovision_payload = {"user_id": user_id, "claw_id": claw_id}
     logger.info(f"Deprovisioning {user_id}/{claw_id}")
+    logger.debug(f"Deprovision POST {url} payload={deprovision_payload}")
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            f"{settings.infra_api_url}/deprovision",
+            url,
             headers=_headers(),
-            json={"user_id": user_id, "claw_id": claw_id},
+            json=deprovision_payload,
         )
+        logger.debug(f"Deprovision response status={resp.status_code} body={resp.text}")
         resp.raise_for_status()
         data = resp.json()
 
@@ -117,14 +146,18 @@ async def deprovision_user(user_id: str) -> dict:
         logger.info(f"[Mock] Deprovision all for user {user_id}")
         return {"status": "ok"}
 
+    url = f"{settings.infra_api_url}/deprovision-user"
+    deprovision_payload = {"user_id": user_id}
     logger.info(f"Deprovisioning all claws for user {user_id}")
+    logger.debug(f"Deprovision-user POST {url} payload={deprovision_payload}")
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            f"{settings.infra_api_url}/deprovision-user",
+            url,
             headers=_headers(),
-            json={"user_id": user_id},
+            json=deprovision_payload,
         )
+        logger.debug(f"Deprovision-user response status={resp.status_code} body={resp.text}")
         resp.raise_for_status()
         data = resp.json()
 

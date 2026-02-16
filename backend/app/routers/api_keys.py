@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import db
 from app.schemas import ApiKeyInput, ApiKeyResponse
 from app.services import infra_api
+from app.services.infra_api import infra_user_id as _infra_user_id
 from app.services.encryption import encrypt
 
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
@@ -52,7 +53,7 @@ async def trigger_reprovisioning(user_id: str) -> bool:
 
     try:
         await infra_api.provision(
-            user_id=user_id,
+            user_id=_infra_user_id(user_id),
             claw_id=claw_id,
             model=model,
             telegram_bot_token=telegram_bot_token,

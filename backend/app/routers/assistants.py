@@ -16,6 +16,7 @@ from app.schemas import (
     DEFAULT_MODEL,
 )
 from app.services import infra_api
+from app.services.infra_api import infra_user_id as _infra_user_id
 from app.services.encryption import encrypt
 
 logger = logging.getLogger("yourclaw.assistants")
@@ -26,23 +27,18 @@ router = APIRouter(prefix="/assistants", tags=["assistants"])
 async def _get_provision_keys(user_id: str) -> dict[str, str]:
     """Build API key dict for infra API provision call.
 
-    BYOK keys override shared keys per provider.
+    Uses shared AI Gateway key by default (routes to all providers).
+    Individual provider keys are only sent if the user set BYOK keys.
     """
     from app.services.encryption import decrypt
 
     keys: dict[str, str] = {}
 
-    # Start with shared keys
+    # Shared AI Gateway key (routes to all providers via Vercel)
     if settings.ai_gateway_api_key:
         keys["ai_gateway_key"] = settings.ai_gateway_api_key
-    if settings.anthropic_api_key:
-        keys["anthropic_key"] = settings.anthropic_api_key
-    if settings.openai_api_key:
-        keys["openai_key"] = settings.openai_api_key
-    if settings.google_api_key:
-        keys["google_key"] = settings.google_api_key
 
-    # Override with BYOK keys
+    # BYOK keys from dashboard (individual provider keys only if user set them)
     byok_rows = await db.select("api_keys", filters={"user_id": user_id})
     for row in byok_rows:
         provider = row["provider"]
@@ -115,7 +111,7 @@ async def create_assistant(
         )
 
     # Generate claw_id
-    claw_id = f"claw-{str(uuid.uuid4())[:8]}"
+    claw_id = f"claw-{uuid.uuid4().int % 10**7}"
 
     # Set status to PROVISIONING
     now = datetime.utcnow().isoformat()
@@ -124,7 +120,7 @@ async def create_assistant(
         old_claw_id = assistant.get("claw_id")
         if old_claw_id:
             try:
-                await infra_api.deprovision(str(user_id), old_claw_id)
+                await infra_api.deprovision(_infra_user_id(user_id), old_claw_id)
             except Exception as e:
                 logger.warning(f"Failed to deprovision old claw {old_claw_id}: {e}")
 
@@ -168,7 +164,7 @@ async def create_assistant(
     # Call infra API to provision
     try:
         await infra_api.provision(
-            user_id=str(user_id),
+            user_id=_infra_user_id(user_id),
             claw_id=claw_id,
             model=model,
             telegram_bot_token=telegram_bot_token,
@@ -219,7 +215,7 @@ async def update_assistant(
         raise HTTPException(status_code=409, detail="Assistant is currently provisioning")
 
     old_claw_id = assistant.get("claw_id")
-    new_claw_id = f"claw-{str(uuid.uuid4())[:8]}"
+    new_claw_id = f"claw-{uuid.uuid4().int % 10**7}"
 
     await db.update(
         "assistants",
@@ -230,7 +226,7 @@ async def update_assistant(
     # Deprovision old
     if old_claw_id:
         try:
-            await infra_api.deprovision(str(user_id), old_claw_id)
+            await infra_api.deprovision(_infra_user_id(user_id), old_claw_id)
         except Exception as e:
             logger.warning(f"Failed to deprovision old claw {old_claw_id}: {e}")
 
@@ -249,7 +245,7 @@ async def update_assistant(
 
     try:
         await infra_api.provision(
-            user_id=str(user_id),
+            user_id=_infra_user_id(user_id),
             claw_id=new_claw_id,
             model=body.model,
             telegram_bot_token=telegram_bot_token,
@@ -291,7 +287,7 @@ async def delete_assistant(user_id: uuid.UUID = Depends(get_current_user)) -> No
     claw_id = assistant.get("claw_id")
     if claw_id:
         try:
-            await infra_api.deprovision(str(user_id), claw_id)
+            await infra_api.deprovision(_infra_user_id(user_id), claw_id)
         except Exception as e:
             logger.warning(f"Failed to deprovision claw {claw_id}: {e}")
 
