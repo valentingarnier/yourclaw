@@ -3,6 +3,14 @@ import { createClient } from "@/lib/supabase/client";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getAuthHeaders(): Promise<HeadersInit> {
+  // Dev mode: skip Supabase session, send dummy token
+  if (process.env.NEXT_PUBLIC_DEV_MODE === "true") {
+    return {
+      Authorization: "Bearer dev-token",
+      "Content-Type": "application/json",
+    };
+  }
+
   const supabase = createClient();
 
   // First try to get session
@@ -102,6 +110,7 @@ export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929";
 export interface AssistantResponse {
   status: string;
   model: string;
+  claw_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -182,7 +191,15 @@ export const api = {
       telegram_username: telegramUsername || undefined,
     }),
   getAssistant: () => apiGet<AssistantResponse>("/api/v1/assistants"),
-  createAssistant: (model?: string) => apiPost<{ status: string; model: string }>("/api/v1/assistants", { model: model || DEFAULT_MODEL }),
+  createAssistant: (data?: {
+    model?: string;
+    telegram_bot_token?: string;
+    telegram_allow_from?: string[];
+  }) => apiPost<{ status: string; model: string; claw_id: string | null }>("/api/v1/assistants", {
+    model: data?.model || DEFAULT_MODEL,
+    telegram_bot_token: data?.telegram_bot_token || undefined,
+    telegram_allow_from: data?.telegram_allow_from || undefined,
+  }),
   updateAssistant: (model: string) => apiPatch<AssistantResponse>("/api/v1/assistants", { model }),
   deleteAssistant: () => apiDelete("/api/v1/assistants"),
   getUsage: () => apiGet<UsageResponse>("/api/v1/usage"),
