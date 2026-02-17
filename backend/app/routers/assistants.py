@@ -23,12 +23,30 @@ logger = logging.getLogger("yourclaw.assistants")
 
 router = APIRouter(prefix="/assistants", tags=["assistants"])
 
+_PROVIDER_KEY_MAP = {"ANTHROPIC": "anthropic_key", "OPENAI": "openai_key", "GOOGLE": "google_key"}
+
+
+def _get_provider_for_model(model: str) -> str:
+    """Extract provider from model ID (e.g., 'anthropic/claude-sonnet-4.5' -> 'ANTHROPIC')."""
+    return model.split("/")[0].upper()
+
+
+async def _validate_provider_key(user_id: str, model: str) -> None:
+    """Raise 400 if user has no BYOK API key for the selected model's provider."""
+    provider = _get_provider_for_model(model)
+    row = await db.select("api_keys", filters={"user_id": user_id, "provider": provider}, single=True)
+    if not row or not row.get("encrypted_key"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"API key required for {provider}. Add your {provider} key in the API Keys section first.",
+        )
+
 
 async def _get_provision_keys(user_id: str) -> dict[str, str]:
     """Build API key dict for infra API provision call.
 
-    Uses shared AI Gateway key by default (routes to all providers).
-    Individual provider keys are only sent if the user set BYOK keys.
+    Includes the shared AI Gateway key (routes to all providers) plus
+    individual BYOK keys the user has configured.
     """
     from app.services.encryption import decrypt
 
@@ -38,7 +56,7 @@ async def _get_provision_keys(user_id: str) -> dict[str, str]:
     if settings.ai_gateway_api_key:
         keys["ai_gateway_key"] = settings.ai_gateway_api_key
 
-    # BYOK keys from dashboard (individual provider keys only if user set them)
+    # BYOK keys from dashboard (individual provider keys)
     byok_rows = await db.select("api_keys", filters={"user_id": user_id})
     for row in byok_rows:
         provider = row["provider"]
@@ -46,10 +64,9 @@ async def _get_provision_keys(user_id: str) -> dict[str, str]:
         if not encrypted:
             continue
         decrypted = decrypt(encrypted)
-        if provider == "ANTHROPIC":
-            keys["anthropic_key"] = decrypted
-        elif provider == "OPENAI":
-            keys["openai_key"] = decrypted
+        key_name = _PROVIDER_KEY_MAP.get(provider)
+        if key_name:
+            keys[key_name] = decrypted
 
     return keys
 
@@ -114,6 +131,9 @@ async def create_assistant(
             status_code=400,
             detail=f"Invalid model. Available: {', '.join(AVAILABLE_MODELS)}",
         )
+
+    # Validate user has a BYOK key for the model's provider
+    await _validate_provider_key(str(user_id), model)
 
     # Check subscription is active (skip in mock mode)
     if not settings.mock_stripe:
@@ -225,6 +245,9 @@ async def update_assistant(
             status_code=400,
             detail=f"Invalid model. Available: {', '.join(AVAILABLE_MODELS)}",
         )
+
+    # Validate user has a BYOK key for the model's provider
+    await _validate_provider_key(str(user_id), body.model)
 
     assistant = await db.select("assistants", filters={"user_id": str(user_id)}, single=True)
     if not assistant:

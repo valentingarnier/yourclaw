@@ -310,6 +310,8 @@ export default function DashboardPage() {
             onCreateAssistant={handleCreateAssistant}
             onDeleteAssistant={handleDeleteAssistant}
             onRefresh={loadData}
+            apiKeys={apiKeys}
+            onNavigate={setActiveSection}
           />
         )}
 
@@ -351,6 +353,8 @@ function AssistantSection({
   onCreateAssistant,
   onDeleteAssistant,
   onRefresh,
+  apiKeys,
+  onNavigate,
 }: {
   user: UserProfile | null;
   assistant: AssistantResponse | null;
@@ -360,9 +364,17 @@ function AssistantSection({
   onCreateAssistant: () => void;
   onDeleteAssistant: () => void;
   onRefresh: () => void;
+  apiKeys: ApiKeyResponse[];
+  onNavigate: (section: Section) => void;
 }) {
   const canChangeModel = !assistant || assistant.status === "NONE" || assistant.status === "ERROR";
   const currentModelInfo = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
+
+  // Providers the user has configured API keys for (lowercase to match model.provider)
+  const configuredProviders = new Set(
+    apiKeys.map((k) => k.provider.toLowerCase())
+  );
+  const hasAnyKey = configuredProviders.size > 0;
   const [editingChannel, setEditingChannel] = useState(false);
   const [newChannel, setNewChannel] = useState<"WHATSAPP" | "TELEGRAM">(
     (user?.channel as "WHATSAPP" | "TELEGRAM") || "TELEGRAM"
@@ -373,6 +385,21 @@ function AssistantSection({
   const [showBotTutorial, setShowBotTutorial] = useState(false);
   const [channelSaving, setChannelSaving] = useState(false);
   const [channelError, setChannelError] = useState<string | null>(null);
+
+  // Auto-select a valid model when configured providers change
+  useEffect(() => {
+    if (!hasAnyKey) return;
+    const currentProvider = selectedModel.split("/")[0];
+    if (!configuredProviders.has(currentProvider)) {
+      const firstAvailable = AVAILABLE_MODELS.find(
+        (m) => configuredProviders.has(m.provider) && !m.comingSoon
+      );
+      if (firstAvailable) {
+        onModelChange(firstAvailable.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKeys, selectedModel]);
 
   async function handleCreateWithChannel() {
     setChannelError(null);
@@ -451,55 +478,79 @@ function AssistantSection({
       <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
         <Subheading className="mb-6">AI Model</Subheading>
 
+        {!hasAnyKey && (
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <KeyIcon className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                  API key required
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  Add your Anthropic or OpenAI API key in the{" "}
+                  <button type="button" onClick={() => onNavigate("apikeys")} className="font-semibold underline hover:text-amber-900 dark:hover:text-amber-100">
+                    API Keys
+                  </button>{" "}
+                  section to see available models.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Anthropic */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <img src="/claude-logo.png" alt="Anthropic" className="size-5" />
-            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Anthropic</p>
+        {configuredProviders.has("anthropic") && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <img src="/claude-logo.png" alt="Anthropic" className="size-5" />
+              <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Anthropic</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {AVAILABLE_MODELS.filter((m) => m.provider === "anthropic").map((model) => (
+                <ModelButton
+                  key={model.id}
+                  model={model}
+                  selected={selectedModel === model.id}
+                  disabled={assistant?.status === "PROVISIONING"}
+                  onClick={() => {
+                    if (canChangeModel) {
+                      onModelChange(model.id);
+                    } else if (assistant?.status === "READY") {
+                      onUpdateModel(model.id);
+                    }
+                  }}
+                />
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {AVAILABLE_MODELS.filter((m) => m.provider === "anthropic").map((model) => (
-              <ModelButton
-                key={model.id}
-                model={model}
-                selected={selectedModel === model.id}
-                disabled={assistant?.status === "PROVISIONING"}
-                onClick={() => {
-                  if (canChangeModel) {
-                    onModelChange(model.id);
-                  } else if (assistant?.status === "READY") {
-                    onUpdateModel(model.id);
-                  }
-                }}
-              />
-            ))}
-          </div>
-        </div>
+        )}
 
         {/* OpenAI */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <img src="/openai-logo.png" alt="OpenAI" className="size-5" />
-            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">OpenAI</p>
+        {configuredProviders.has("openai") && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <img src="/openai-logo.png" alt="OpenAI" className="size-5" />
+              <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">OpenAI</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {AVAILABLE_MODELS.filter((m) => m.provider === "openai").map((model) => (
+                <ModelButton
+                  key={model.id}
+                  model={model}
+                  selected={selectedModel === model.id}
+                  disabled={assistant?.status === "PROVISIONING"}
+                  onClick={() => {
+                    if (canChangeModel) {
+                      onModelChange(model.id);
+                    } else if (assistant?.status === "READY") {
+                      onUpdateModel(model.id);
+                    }
+                  }}
+                />
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {AVAILABLE_MODELS.filter((m) => m.provider === "openai").map((model) => (
-              <ModelButton
-                key={model.id}
-                model={model}
-                selected={selectedModel === model.id}
-                disabled={assistant?.status === "PROVISIONING"}
-                onClick={() => {
-                  if (canChangeModel) {
-                    onModelChange(model.id);
-                  } else if (assistant?.status === "READY") {
-                    onUpdateModel(model.id);
-                  }
-                }}
-              />
-            ))}
-          </div>
-        </div>
+        )}
 
         {assistant?.status === "READY" && (
           <Text className="mt-6 text-xs">Changing model will reprovision your assistant.</Text>
@@ -612,15 +663,6 @@ function AssistantSection({
             <div className="flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">
               <button
                 type="button"
-                disabled
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-50"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-                WhatsApp
-                <span className="text-[10px] uppercase tracking-wider font-semibold bg-zinc-200 dark:bg-zinc-600 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">Soon</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setNewChannel("TELEGRAM")}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   newChannel === "TELEGRAM"
@@ -630,6 +672,15 @@ function AssistantSection({
               >
                 <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
                 Telegram
+              </button>
+              <button
+                type="button"
+                disabled
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-50"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                WhatsApp
+                <span className="text-[10px] uppercase tracking-wider font-semibold bg-zinc-200 dark:bg-zinc-600 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">Soon</span>
               </button>
             </div>
 
@@ -726,7 +777,7 @@ function AssistantSection({
 
         <div className="flex flex-wrap gap-3">
           {(!assistant || assistant.status === "NONE" || assistant.status === "ERROR") && (
-            <Button color="dark" onClick={handleCreateWithChannel} disabled={channelSaving}>
+            <Button color="dark" onClick={handleCreateWithChannel} disabled={channelSaving || !hasAnyKey}>
               <PlusIcon />
               {channelSaving ? "Setting up..." : user?.subscription_status === "ACTIVE" ? "Create Assistant" : "Subscribe & Create Assistant"}
             </Button>
@@ -769,13 +820,13 @@ function AssistantSection({
           {editingChannel ? (
             <div className="space-y-4">
               <div className="flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">
-                <button type="button" onClick={() => setNewChannel("WHATSAPP")} className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${newChannel === "WHATSAPP" ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-                  WhatsApp
-                </button>
                 <button type="button" onClick={() => setNewChannel("TELEGRAM")} className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${newChannel === "TELEGRAM" ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
                   <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
                   Telegram
+                </button>
+                <button type="button" onClick={() => setNewChannel("WHATSAPP")} className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${newChannel === "WHATSAPP" ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                  WhatsApp
                 </button>
               </div>
               {newChannel === "WHATSAPP" && (
@@ -1003,6 +1054,19 @@ function ApiKeysSection({
 
   const hasKey = (provider: string) => apiKeys.some((k) => k.provider === provider);
 
+  const providerLinks: Record<string, { url: string; label: string; steps: string }> = {
+    ANTHROPIC: {
+      url: "https://console.anthropic.com/settings/keys",
+      label: "Get your Anthropic API key",
+      steps: "Go to console.anthropic.com \u2192 Settings \u2192 API Keys \u2192 Create Key",
+    },
+    OPENAI: {
+      url: "https://platform.openai.com/api-keys",
+      label: "Get your OpenAI API key",
+      steps: "Go to platform.openai.com \u2192 API Keys \u2192 Create new secret key",
+    },
+  };
+
   async function handleSaveKey(provider: string) {
     const key = keyInputs[provider];
     if (!key || key.trim().length < 10) {
@@ -1025,7 +1089,7 @@ function ApiKeysSection({
 
   async function handleDeleteKey(provider: string) {
     const providerInfo = API_KEY_PROVIDERS.find((p) => p.id === provider);
-    if (!confirm(`Remove your ${providerInfo?.name} API key? Your assistant will use the shared key instead.`)) return;
+    if (!confirm(`Remove your ${providerInfo?.name} API key? ${providerInfo?.name} models will become unavailable.`)) return;
 
     try {
       setSavingProvider(provider);
@@ -1044,7 +1108,7 @@ function ApiKeysSection({
       <div>
         <Heading>API Keys</Heading>
         <Text className="mt-2">
-          Use your own API keys to avoid usage limits or use your existing accounts.
+          Add your API keys to use AI models. Your assistant requires at least one provider key.
           {assistant?.status === "READY" && " Your assistant will be restarted when you add or remove keys."}
         </Text>
       </div>
@@ -1091,23 +1155,38 @@ function ApiKeysSection({
                   </Button>
                 </div>
               ) : (
-                <div className="flex gap-2 mt-3">
-                  <input
-                    type="password"
-                    placeholder={`Enter your ${provider.name} API key`}
-                    value={keyInputs[provider.id] || ""}
-                    onChange={(e) =>
-                      setKeyInputs((prev) => ({ ...prev, [provider.id]: e.target.value }))
-                    }
-                    className="flex-1 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
-                  />
-                  <Button
-                    color="dark"
-                    onClick={() => handleSaveKey(provider.id)}
-                    disabled={isSaving || !keyInputs[provider.id]}
-                  >
-                    {isSaving ? "Saving..." : "Save"}
-                  </Button>
+                <div className="space-y-2 mt-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      placeholder={`Enter your ${provider.name} API key`}
+                      value={keyInputs[provider.id] || ""}
+                      onChange={(e) =>
+                        setKeyInputs((prev) => ({ ...prev, [provider.id]: e.target.value }))
+                      }
+                      className="flex-1 rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                    />
+                    <Button
+                      color="dark"
+                      onClick={() => handleSaveKey(provider.id)}
+                      disabled={isSaving || !keyInputs[provider.id]}
+                    >
+                      {isSaving ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                  {providerLinks[provider.id] && (
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                      <a
+                        href={providerLinks[provider.id].url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                      >
+                        {providerLinks[provider.id].label} &rarr;
+                      </a>
+                      <span className="ml-1">{providerLinks[provider.id].steps}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1118,7 +1197,7 @@ function ApiKeysSection({
       <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 p-4">
         <Text className="text-sm">
           <strong>Note:</strong> Your API keys are encrypted and stored securely. We never log or share your keys.
-          When you add a custom key, your assistant will use it instead of the shared key for that provider.
+          You need at least one provider key configured to create an assistant.
         </Text>
       </div>
     </div>

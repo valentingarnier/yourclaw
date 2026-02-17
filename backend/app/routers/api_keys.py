@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 logger = logging.getLogger("yourclaw.api_keys")
 
 # Valid providers
-VALID_PROVIDERS = ["ANTHROPIC", "OPENAI"]
+VALID_PROVIDERS = ["ANTHROPIC", "OPENAI", "GOOGLE"]
 
 
 async def trigger_reprovisioning(user_id: str) -> bool:
@@ -44,6 +44,15 @@ async def trigger_reprovisioning(user_id: str) -> bool:
         telegram_bot_token = decrypt(phone_row["telegram_bot_token_encrypted"])
 
     provision_keys = await _get_provision_keys(user_id)
+
+    # Check the model's provider key is still present
+    from app.routers.assistants import _PROVIDER_KEY_MAP, _get_provider_for_model
+    provider = _get_provider_for_model(model)
+    required_key = _PROVIDER_KEY_MAP.get(provider)
+    if required_key and required_key not in provision_keys:
+        await db.update("assistants", {"status": "ERROR", "updated_at": datetime.utcnow().isoformat()}, {"user_id": user_id})
+        logger.warning(f"Cannot reprovision user {user_id}: no {provider} key for model {model}")
+        return False
 
     await db.update("assistants", {"status": "PROVISIONING", "updated_at": datetime.utcnow().isoformat()}, {"user_id": user_id})
 
@@ -127,8 +136,9 @@ async def delete_api_key(
     provider: str = "ANTHROPIC",
     user_id: uuid.UUID = Depends(get_current_user),
 ) -> None:
-    """Remove user's API key, revert to shared key.
+    """Remove user's API key.
 
+    Models for this provider will become unavailable until a new key is added.
     Triggers reprovisioning if assistant exists.
     """
     # Validate provider
@@ -142,5 +152,5 @@ async def delete_api_key(
     if not result:
         raise HTTPException(status_code=404, detail="No API key found for this provider")
 
-    # Trigger reprovisioning to revert to shared key
+    # Trigger reprovisioning (will set ERROR if model needs this provider's key)
     await trigger_reprovisioning(str(user_id))

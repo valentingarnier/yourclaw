@@ -156,8 +156,8 @@ export interface SubscriptionDetails {
 }
 
 export const API_KEY_PROVIDERS = [
-  { id: "ANTHROPIC", name: "Anthropic", description: "Claude models" },
-  { id: "OPENAI", name: "OpenAI", description: "GPT models" },
+  { id: "ANTHROPIC", name: "Anthropic", description: "Required for Claude models" },
+  { id: "OPENAI", name: "OpenAI", description: "Required for GPT models" },
 ] as const;
 
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
