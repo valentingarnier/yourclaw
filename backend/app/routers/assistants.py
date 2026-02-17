@@ -27,7 +27,7 @@ _PROVIDER_KEY_MAP = {"ANTHROPIC": "anthropic_key", "OPENAI": "openai_key", "GOOG
 
 
 def _get_provider_for_model(model: str) -> str:
-    """Extract provider from model ID (e.g., 'anthropic/claude-sonnet-4.5' -> 'ANTHROPIC')."""
+    """Extract provider from model ID (e.g., 'anthropic/claude-sonnet-4-5' -> 'ANTHROPIC')."""
     return model.split("/")[0].upper()
 
 
@@ -45,16 +45,11 @@ async def _validate_provider_key(user_id: str, model: str) -> None:
 async def _get_provision_keys(user_id: str) -> dict[str, str]:
     """Build API key dict for infra API provision call.
 
-    Includes the shared AI Gateway key (routes to all providers) plus
-    individual BYOK keys the user has configured.
+    Uses the user's BYOK keys configured in the dashboard.
     """
     from app.services.encryption import decrypt
 
     keys: dict[str, str] = {}
-
-    # Shared AI Gateway key (routes to all providers via Vercel)
-    if settings.ai_gateway_api_key:
-        keys["ai_gateway_key"] = settings.ai_gateway_api_key
 
     # BYOK keys from dashboard (individual provider keys)
     byok_rows = await db.select("api_keys", filters={"user_id": user_id})
@@ -183,7 +178,7 @@ async def create_assistant(
     if body.telegram_bot_token:
         phone_update["telegram_bot_token_encrypted"] = encrypt(body.telegram_bot_token)
     if body.telegram_username:
-        phone_update["telegram_username"] = body.telegram_username
+        phone_update["telegram_username"] = body.telegram_username.lstrip("@").strip()
     if phone_update:
         await db.update("user_phones", phone_update, {"user_id": str(user_id)})
 

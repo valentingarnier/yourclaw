@@ -39,7 +39,7 @@ Creates: Deployment, Service, ConfigMap, Secret, PVC (10Gi persistent volume), C
 | `openai_key` | string | no | `""` | OpenAI API key |
 | `google_key` | string | no | `""` | Google API key |
 | `ai_gateway_key` | string | no | `""` | Vercel AI Gateway key (routes to all providers) |
-| `model` | string | no | `anthropic/claude-sonnet-4.5` | LLM model identifier |
+| `model` | string | no | `anthropic/claude-sonnet-4-5` | LLM model identifier |
 | `system_instructions` | string \| null | no | Default personality | Custom system prompt (stored as SOUL.md) |
 | `telegram_bot_token` | string | no | `""` | Telegram bot token for channel support (open DM policy) |
 
@@ -51,8 +51,8 @@ curl -X POST https://infra.api.yourclaw.dev/provision \
   -d '{
     "user_id": "user-abc",
     "claw_id": "claw-1",
-    "ai_gateway_key": "vck_...",
-    "model": "anthropic/claude-sonnet-4.5",
+    "anthropic_key": "sk-ant-...",
+    "model": "anthropic/claude-sonnet-4-5",
     "telegram_bot_token": "123456:ABC..."
   }'
 ```

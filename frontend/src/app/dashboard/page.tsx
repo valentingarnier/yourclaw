@@ -724,8 +724,12 @@ function AssistantSection({
                   <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your Telegram username</p>
                   <input
                     type="text"
-                    value={newTelegramUsername}
-                    onChange={(e) => setNewTelegramUsername(e.target.value)}
+                    value={newTelegramUsername ? (newTelegramUsername.startsWith("@") ? newTelegramUsername : `@${newTelegramUsername}`) : ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // Always store without @, display handles the prefix
+                      setNewTelegramUsername(val.replace(/^@+/, "").trim());
+                    }}
                     placeholder="@yourusername"
                     className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
                   />

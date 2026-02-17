@@ -94,12 +94,11 @@ export const TELEGRAM_BOT_USERNAME = "Yourclawdev_bot";
 export const AVAILABLE_MODELS = [
   // OpenAI
   { id: "openai/gpt-5.2-codex", name: "GPT-5.2 Codex", description: "OpenAI's most capable", provider: "openai", comingSoon: false },
-  { id: "openai/gpt-4o", name: "GPT-4o", description: "OpenAI's flagship model", provider: "openai", comingSoon: false },
-  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and affordable", provider: "openai", comingSoon: false },
+  { id: "openai/gpt-5-mini", name: "GPT-5 Mini", description: "Fast and affordable", provider: "openai", comingSoon: false },
   // Anthropic
-  { id: "anthropic/claude-opus-4.6", name: "Claude Opus 4.6", description: "Most powerful", provider: "anthropic", comingSoon: false },
-  { id: "anthropic/claude-sonnet-4.5", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic", comingSoon: false },
-  { id: "anthropic/claude-haiku-4.5", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic", comingSoon: false },
+  { id: "anthropic/claude-opus-4-6", name: "Claude Opus 4.6", description: "Most powerful", provider: "anthropic", comingSoon: false },
+  { id: "anthropic/claude-sonnet-4-5", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic", comingSoon: false },
+  { id: "anthropic/claude-haiku-4-5", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic", comingSoon: false },
 ] as const;
 
 export const DEFAULT_MODEL = "openai/gpt-5.2-codex";

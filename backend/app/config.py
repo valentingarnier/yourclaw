@@ -48,9 +48,6 @@ class Settings(BaseSettings):
     infra_api_url: str = "https://infra.api.yourclaw.dev"
     yourclaw_api_key: str = ""  # Bearer token for infra API
 
-    # AI Gateway (Vercel)
-    ai_gateway_api_key: str = ""
-
     # Mock Mode
     mock_twilio: bool = False
     mock_containers: bool = False

@@ -37,7 +37,7 @@ class ProvisionRequest(BaseModel):
     anthropic_key: str = ""
     openai_key: str = ""
     ai_gateway_key: str = ""
-    model: str = "anthropic/claude-sonnet-4.5"
+    model: str = "anthropic/claude-sonnet-4-5"
     system_instructions: str | None = None
     telegram_bot_token: str = ""
     telegram_allow_from: list[str] = []

@@ -95,7 +95,7 @@ async def set_channel(
         "user_id": str(user_id),
         "channel": body.channel,
         "phone_e164": body.phone if body.channel == "WHATSAPP" else None,
-        "telegram_username": body.telegram_username if body.channel == "TELEGRAM" else None,
+        "telegram_username": body.telegram_username.lstrip("@").strip() if body.channel == "TELEGRAM" and body.telegram_username else None,
     }
 
     await db.upsert("user_phones", data, on_conflict="user_id")

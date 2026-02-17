@@ -38,12 +38,11 @@ class ChannelInput(BaseModel):
 AVAILABLE_MODELS = [
     # OpenAI
     "openai/gpt-5.2-codex",
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-    # Anthropic (Vercel AI Gateway IDs)
-    "anthropic/claude-opus-4.6",
-    "anthropic/claude-sonnet-4.5",
-    "anthropic/claude-haiku-4.5",
+    "openai/gpt-5-mini",
+    # Anthropic
+    "anthropic/claude-opus-4-6",
+    "anthropic/claude-sonnet-4-5",
+    "anthropic/claude-haiku-4-5",
 ]
 DEFAULT_MODEL = "openai/gpt-5.2-codex"
 
