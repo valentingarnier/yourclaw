@@ -27,8 +27,10 @@ class ChannelInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_channel_fields(self):
+        if self.channel == "TELEGRAM" and not self.telegram_username:
+            raise ValueError("Telegram username required for Telegram channel")
         if self.channel == "WHATSAPP" and not self.phone:
-            raise ValueError("Phone number required for WhatsApp channel")
+            raise ValueError("Phone number (E.164) required for WhatsApp channel")
         return self
 
 
@@ -43,6 +45,10 @@ AVAILABLE_MODELS = [
     "anthropic/claude-opus-4-6",
     "anthropic/claude-sonnet-4-5",
     "anthropic/claude-haiku-4-5",
+    # Vercel AI Gateway (cheap alternative models)
+    "deepseek/deepseek-v3.2",
+    "minimax/minimax-m2.5",
+    "moonshotai/kimi-k2.5",
 ]
 DEFAULT_MODEL = "openai/gpt-5.2-codex"
 
@@ -50,6 +56,7 @@ DEFAULT_MODEL = "openai/gpt-5.2-codex"
 class AssistantResponse(BaseModel):
     status: str
     model: str = DEFAULT_MODEL
+    channel: str | None = None
     claw_id: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -57,6 +64,7 @@ class AssistantResponse(BaseModel):
 
 class AssistantCreateInput(BaseModel):
     model: str = Field(default=DEFAULT_MODEL, description="OpenClaw model identifier")
+    channel: str = Field(default="TELEGRAM", pattern=r"^(WHATSAPP|TELEGRAM)$", description="Messaging channel")
     telegram_bot_token: str | None = Field(None, description="Per-user Telegram bot token from @BotFather")
     telegram_username: str | None = Field(None, description="Telegram username for allowFrom (without @)")
 
@@ -68,6 +76,7 @@ class AssistantUpdateInput(BaseModel):
 class AssistantCreateResponse(BaseModel):
     status: str  # READY or ERROR
     model: str = DEFAULT_MODEL
+    channel: str | None = None
     claw_id: str | None = None
 
 

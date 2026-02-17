@@ -91,10 +91,7 @@ class OpenclawConfig:
 def build_openclaw_json(config: OpenclawConfig) -> dict:
     """Build the openclaw.json config dict from typed input."""
 
-    # Prefix model with vercel-ai-gateway/ when using AI Gateway
     model_id = config.model.primary
-    if config.provider_keys.ai_gateway and not model_id.startswith("vercel-ai-gateway/"):
-        model_id = f"vercel-ai-gateway/{model_id}"
 
     result: dict = {
         "agents": {

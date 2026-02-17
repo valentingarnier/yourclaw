@@ -99,6 +99,10 @@ export const AVAILABLE_MODELS = [
   { id: "anthropic/claude-opus-4-6", name: "Claude Opus 4.6", description: "Most powerful", provider: "anthropic", comingSoon: false },
   { id: "anthropic/claude-sonnet-4-5", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic", comingSoon: false },
   { id: "anthropic/claude-haiku-4-5", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic", comingSoon: false },
+  // Vercel AI Gateway (cheap alternative models)
+  { id: "minimax/minimax-m2.5", name: "MiniMax M2.5", description: "Fast and budget-friendly", provider: "vercel", comingSoon: false },
+  { id: "deepseek/deepseek-v3.2", name: "DeepSeek V3.2", description: "Powerful and very affordable", provider: "vercel", comingSoon: false },
+  { id: "moonshotai/kimi-k2.5", name: "Kimi K2.5", description: "Capable and cost-effective", provider: "vercel", comingSoon: false },
 ] as const;
 
 export const DEFAULT_MODEL = "openai/gpt-5.2-codex";
@@ -106,6 +110,7 @@ export const DEFAULT_MODEL = "openai/gpt-5.2-codex";
 export interface AssistantResponse {
   status: string;
   model: string;
+  channel: string | null;
   claw_id: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -155,6 +160,7 @@ export interface SubscriptionDetails {
 }
 
 export const API_KEY_PROVIDERS = [
+  { id: "VERCEL", name: "Vercel AI Gateway", description: "Access cheap models (MiniMax, DeepSeek, Kimi)" },
   { id: "ANTHROPIC", name: "Anthropic", description: "Required for Claude models" },
   { id: "OPENAI", name: "OpenAI", description: "Required for GPT models" },
 ] as const;
@@ -188,10 +194,12 @@ export const api = {
   getAssistant: () => apiGet<AssistantResponse>("/api/v1/assistants"),
   createAssistant: (data?: {
     model?: string;
+    channel?: string;
     telegram_bot_token?: string;
     telegram_username?: string;
-  }) => apiPost<{ status: string; model: string; claw_id: string | null }>("/api/v1/assistants", {
+  }) => apiPost<{ status: string; model: string; channel: string | null; claw_id: string | null }>("/api/v1/assistants", {
     model: data?.model || DEFAULT_MODEL,
+    channel: data?.channel || "TELEGRAM",
     telegram_bot_token: data?.telegram_bot_token || undefined,
     telegram_username: data?.telegram_username || undefined,
   }),

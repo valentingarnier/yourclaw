@@ -91,12 +91,16 @@ async def set_channel(
     existing = await db.select("user_phones", filters={"user_id": str(user_id)}, single=True)
     is_new_user = existing is None
 
-    data = {
+    data: dict = {
         "user_id": str(user_id),
         "channel": body.channel,
-        "phone_e164": body.phone if body.channel == "WHATSAPP" else None,
         "telegram_username": body.telegram_username.lstrip("@").strip() if body.channel == "TELEGRAM" and body.telegram_username else None,
     }
+    # Only set phone if explicitly provided (WhatsApp no longer requires upfront phone)
+    if body.phone:
+        data["phone_e164"] = body.phone
+    elif body.channel == "TELEGRAM":
+        data["phone_e164"] = None
 
     await db.upsert("user_phones", data, on_conflict="user_id")
 

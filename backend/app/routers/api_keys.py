@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 logger = logging.getLogger("yourclaw.api_keys")
 
 # Valid providers
-VALID_PROVIDERS = ["ANTHROPIC", "OPENAI", "GOOGLE"]
+VALID_PROVIDERS = ["ANTHROPIC", "OPENAI", "GOOGLE", "VERCEL"]
 
 
 async def trigger_reprovisioning(user_id: str) -> bool:

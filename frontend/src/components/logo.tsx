@@ -9,7 +9,7 @@ interface LogoProps {
   variant?: "light" | "dark" | "auto";
 }
 
-export function Logo({ size = "md", showText = true, href = "/", className, variant = "auto" }: LogoProps) {
+export function Logo({ size = "md", showText = true, href, className, variant = "auto" }: LogoProps) {
   const sizes = {
     sm: { icon: "w-6 h-6", text: "text-sm", iconText: "text-xs" },
     md: { icon: "w-8 h-8", text: "text-lg", iconText: "text-sm" },

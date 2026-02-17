@@ -1,6 +1,6 @@
 # YourClaw MVP
 
-Telegram AI assistant. User signs in, picks Telegram, pays ($20/mo + 48h trial), gets a personal OpenClaw instance. WhatsApp coming soon.
+Telegram & WhatsApp AI assistant. User signs in, picks a channel, pays ($20/mo + 48h trial), gets a personal OpenClaw instance.
 
 ## Stack
 
@@ -8,7 +8,7 @@ Telegram AI assistant. User signs in, picks Telegram, pays ($20/mo + 48h trial),
 - **Backend**: FastAPI + Supabase (auth + Postgres)
 - **Infra**: k3s on Hetzner, one pod per user, separate infra API
 - **Payments**: Stripe subscription
-- **LLM providers**: Anthropic, OpenAI. Shared keys + BYOK via Vercel AI Gateway.
+- **LLM providers**: Anthropic, OpenAI, Vercel AI Gateway (MiniMax, DeepSeek, Kimi). BYOK only (users must provide their own API keys).
 
 ## Repo Structure
 
@@ -54,13 +54,17 @@ Before marking ANY task complete:
 
 ## Current State
 
-- **Working**: Auth, Telegram provisioning, Stripe billing, BYOK API keys, model switching
-- **Paused**: WhatsApp (UI shows "Coming Soon"), Google Integrations (OAuth not verified)
-- **Google/Gemini models**: Removed — only Anthropic and OpenAI models are supported
+- **Working**: Auth, Telegram provisioning, WhatsApp provisioning + QR login, Stripe billing, BYOK API keys, model switching, Vercel AI Gateway
+- **Paused**: Google Integrations (OAuth not verified)
+- **WhatsApp flow**: User enters phone (E.164) on the dashboard (not onboarding). Pod is provisioned with `whatsapp_allow_from=[phone]`. When pod becomes READY, QR login dialog auto-opens. SSE proxy (`/api/whatsapp-login` → infra API → pod `:18789/whatsapp/login`) streams QR codes. After scan, `connected` event fires → pod restarts → dashboard polls until READY → dialog auto-closes. No Twilio.
+- **Onboarding**: Only used for initial prefill (channel + phone). Dashboard handles all assistant creation/management. No redirect from dashboard to onboarding.
+- **Google/Gemini models**: Removed — only Anthropic, OpenAI, and Vercel AI Gateway models are supported
+- **Vercel AI Gateway**: Users can add a Vercel AI Gateway key to access cheap models (MiniMax, DeepSeek, Kimi). When Vercel key is present, only `ai_gateway_key` is sent to provisioning (other provider keys are excluded). Model IDs are passed as-is; OpenClaw routes through the gateway via the `AI_GATEWAY_API_KEY` env var.
+- **Model IDs**: Anthropic/OpenAI use hyphens (`anthropic/claude-sonnet-4-5`). Vercel models use real provider IDs with dots (`minimax/minimax-m2.5`, `deepseek/deepseek-v3.2`, `moonshotai/kimi-k2.5`).
+- **Two config builders**: `backend-infra/src/backend_infra/services/config_builder.py` is the one used by the infra API (builds actual pod config). `backend/app/services/infra/config_builder.py` is a local copy (used by local claw_client). Both must stay in sync.
 
 ## TODOs
 
 1. **Anthropic rate limit** — Currently Tier 1 (50k tokens/min). Need Tier 2+.
 2. **Rate limits** — Implement daily (100 msg/day) + per-minute (5 msg/min) limits.
 3. **Re-enable Google Integrations** after OAuth app verification.
-4. **Re-enable WhatsApp** once Twilio number is configured.

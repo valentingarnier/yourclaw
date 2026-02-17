@@ -34,7 +34,7 @@ function AdFeed1() {
           <div className="rounded-full bg-emerald-500 px-6 py-3 text-lg font-semibold text-white">
             Start free trial
           </div>
-          <span className="text-lg text-zinc-500">48h free &middot; $29/mo</span>
+          <span className="text-lg text-zinc-500">48h free &middot; $20/mo</span>
         </div>
       </div>
 
@@ -141,7 +141,7 @@ function AdFeed3() {
           <div className="rounded-full bg-emerald-500 px-6 py-3 text-lg font-semibold text-white">
             Try free for 48h
           </div>
-          <span className="text-zinc-500">$29/month &middot; Cancel anytime</span>
+          <span className="text-zinc-500">$20/month &middot; Cancel anytime</span>
         </div>
       </div>
 

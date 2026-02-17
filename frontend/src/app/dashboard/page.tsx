@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { QRCodeSVG } from "qrcode.react";
 import {
   api,
   UserProfile,
@@ -112,11 +113,6 @@ export default function DashboardPage() {
       if (assistantData?.model) {
         setSelectedModel(assistantData.model);
       }
-
-      if (!userData.phone && userData.channel !== "TELEGRAM") {
-        router.push("/onboarding");
-        return;
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -220,7 +216,7 @@ export default function DashboardPage() {
       <SidebarHeader>
         <SidebarSection>
           <SidebarItem href="/dashboard">
-            <Logo size="md" showText={true} href={undefined} />
+            <Logo size="md" showText={true} />
           </SidebarItem>
         </SidebarSection>
       </SidebarHeader>
@@ -379,20 +375,190 @@ function AssistantSection({
   const [newChannel, setNewChannel] = useState<"WHATSAPP" | "TELEGRAM">(
     (user?.channel as "WHATSAPP" | "TELEGRAM") || "TELEGRAM"
   );
-  const [newPhone, setNewPhone] = useState(user?.phone || "");
   const [newBotToken, setNewBotToken] = useState("");
   const [newTelegramUsername, setNewTelegramUsername] = useState("");
+  const [newWhatsAppPhone, setNewWhatsAppPhone] = useState(user?.phone || "");
   const [showBotTutorial, setShowBotTutorial] = useState(false);
   const [channelSaving, setChannelSaving] = useState(false);
   const [channelError, setChannelError] = useState<string | null>(null);
 
+  // WhatsApp QR login state
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
+  const [whatsappStatus, setWhatsappStatus] = useState<
+    "idle" | "loading" | "qr_displayed" | "connected" | "pod_restarting" | "ready" | "error" | "timeout"
+  >("idle");
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const cleanupWhatsAppSSE = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return cleanupWhatsAppSSE;
+  }, [cleanupWhatsAppSSE]);
+
+  async function startWhatsAppLogin() {
+    cleanupWhatsAppSSE();
+    setWhatsappDialogOpen(true);
+    setWhatsappStatus("loading");
+    setQrCode(null);
+    setWhatsappError(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const resp = await fetch("/api/whatsapp-login", {
+        signal: controller.signal,
+      });
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => null);
+        setWhatsappError(body?.detail || `Server error (${resp.status})`);
+        setWhatsappStatus("error");
+        return;
+      }
+
+      if (!resp.body) {
+        setWhatsappError("No response stream");
+        setWhatsappStatus("error");
+        return;
+      }
+
+      // Timeout after 3.5 min (infra API times out at 3 min)
+      timeoutRef.current = setTimeout(() => {
+        setWhatsappStatus("timeout");
+        controller.abort();
+        abortRef.current = null;
+      }, 210000);
+
+      // Parse SSE stream
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (currentEvent === "qr") {
+              setQrCode(data);
+              setWhatsappStatus("qr_displayed");
+            } else if (currentEvent === "connected") {
+              setWhatsappStatus("connected");
+              reader.cancel();
+              abortRef.current = null;
+              // Pod will restart — poll assistant status until ready, then auto-close
+              setTimeout(() => {
+                setWhatsappStatus("pod_restarting");
+                pollRef.current = setInterval(async () => {
+                  try {
+                    const a = await api.getAssistant();
+                    if (a?.status === "READY") {
+                      if (pollRef.current) clearInterval(pollRef.current);
+                      pollRef.current = null;
+                      setWhatsappDialogOpen(false);
+                      setWhatsappStatus("idle");
+                      onRefresh();
+                    }
+                  } catch {
+                    // keep polling
+                  }
+                }, 3000);
+              }, 1500);
+              return;
+            } else if (currentEvent === "error") {
+              setWhatsappError(data || "Connection failed");
+              setWhatsappStatus("error");
+              reader.cancel();
+              abortRef.current = null;
+              return;
+            }
+            currentEvent = "";
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setWhatsappError("Failed to connect to server");
+      setWhatsappStatus("error");
+    }
+  }
+
+  function closeWhatsAppDialog() {
+    cleanupWhatsAppSSE();
+    setWhatsappDialogOpen(false);
+    setWhatsappStatus("idle");
+  }
+
+  // Poll when PROVISIONING to detect READY + auto-start WhatsApp login
+  const provisionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (assistant?.status === "PROVISIONING") {
+      provisionPollRef.current = setInterval(async () => {
+        try {
+          const a = await api.getAssistant();
+          if (a?.status === "READY") {
+            if (provisionPollRef.current) clearInterval(provisionPollRef.current);
+            provisionPollRef.current = null;
+            onRefresh();
+            // Auto-start WhatsApp login for WhatsApp channel
+            if (user?.channel === "WHATSAPP") {
+              startWhatsAppLogin();
+            }
+          }
+        } catch {
+          // keep polling
+        }
+      }, 5000);
+    }
+    return () => {
+      if (provisionPollRef.current) {
+        clearInterval(provisionPollRef.current);
+        provisionPollRef.current = null;
+      }
+    };
+  }, [assistant?.status]);
+
   // Auto-select a valid model when configured providers change
   useEffect(() => {
     if (!hasAnyKey) return;
-    const currentProvider = selectedModel.split("/")[0];
-    if (!configuredProviders.has(currentProvider)) {
+    // When Vercel key is present, only Vercel models should be shown
+    const hasVercel = configuredProviders.has("vercel");
+    const currentModelProvider = AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.provider;
+    const isCurrentValid = hasVercel
+      ? currentModelProvider === "vercel"
+      : configuredProviders.has(currentModelProvider || "");
+
+    if (!isCurrentValid) {
       const firstAvailable = AVAILABLE_MODELS.find(
-        (m) => configuredProviders.has(m.provider) && !m.comingSoon
+        (m) => (hasVercel ? m.provider === "vercel" : configuredProviders.has(m.provider)) && !m.comingSoon
       );
       if (firstAvailable) {
         onModelChange(firstAvailable.id);
@@ -403,13 +569,7 @@ function AssistantSection({
 
   async function handleCreateWithChannel() {
     setChannelError(null);
-    if (newChannel === "WHATSAPP") {
-      const phoneRegex = /^\+[1-9]\d{1,14}$/;
-      if (!phoneRegex.test(newPhone)) {
-        setChannelError("Enter a valid phone number (e.g., +15551234567)");
-        return;
-      }
-    } else {
+    if (newChannel === "TELEGRAM") {
       if (!newBotToken || !newBotToken.includes(":")) {
         setChannelError("Enter a valid Telegram bot token (from @BotFather)");
         return;
@@ -419,17 +579,23 @@ function AssistantSection({
         return;
       }
     }
+    if (newChannel === "WHATSAPP") {
+      if (!newWhatsAppPhone.match(/^\+[1-9]\d{1,14}$/)) {
+        setChannelError("Enter your phone number in international format (e.g. +33612345678)");
+        return;
+      }
+    }
     try {
       setChannelSaving(true);
       const username = newTelegramUsername.replace(/^@/, "").trim();
       await api.setChannel(
         newChannel,
-        newChannel === "WHATSAPP" ? newPhone : undefined,
+        newChannel === "WHATSAPP" ? newWhatsAppPhone : undefined,
         newChannel === "TELEGRAM" ? username : undefined,
       );
-      // Channel saved, now create the assistant with bot token + username
       await api.createAssistant({
         model: selectedModel,
+        channel: newChannel,
         telegram_bot_token: newChannel === "TELEGRAM" ? newBotToken : undefined,
         telegram_username: newChannel === "TELEGRAM" ? username : undefined,
       });
@@ -443,18 +609,29 @@ function AssistantSection({
 
   async function handleSaveChannel() {
     setChannelError(null);
+    if (newChannel === "TELEGRAM") {
+      if (!newBotToken || !newBotToken.includes(":")) {
+        setChannelError("Enter a valid Telegram bot token (from @BotFather)");
+        return;
+      }
+      if (!newTelegramUsername.trim()) {
+        setChannelError("Enter your Telegram username so only you can message the bot");
+        return;
+      }
+    }
     if (newChannel === "WHATSAPP") {
-      const phoneRegex = /^\+[1-9]\d{1,14}$/;
-      if (!phoneRegex.test(newPhone)) {
-        setChannelError("Enter a valid phone (e.g., +15551234567)");
+      if (!newWhatsAppPhone.match(/^\+[1-9]\d{1,14}$/)) {
+        setChannelError("Enter your phone number in international format (e.g. +33612345678)");
         return;
       }
     }
     try {
       setChannelSaving(true);
+      const username = newTelegramUsername.replace(/^@/, "").trim();
       await api.setChannel(
         newChannel,
-        newChannel === "WHATSAPP" ? newPhone : undefined,
+        newChannel === "WHATSAPP" ? newWhatsAppPhone : undefined,
+        newChannel === "TELEGRAM" ? username : undefined,
       );
       setEditingChannel(false);
       onRefresh();
@@ -487,7 +664,7 @@ function AssistantSection({
                   API key required
                 </p>
                 <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                  Add your Anthropic or OpenAI API key in the{" "}
+                  Add your Anthropic, OpenAI, or Vercel AI Gateway key in the{" "}
                   <button type="button" onClick={() => onNavigate("apikeys")} className="font-semibold underline hover:text-amber-900 dark:hover:text-amber-100">
                     API Keys
                   </button>{" "}
@@ -499,7 +676,7 @@ function AssistantSection({
         )}
 
         {/* Anthropic */}
-        {configuredProviders.has("anthropic") && (
+        {configuredProviders.has("anthropic") && !configuredProviders.has("vercel") && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
               <img src="/claude-logo.png" alt="Anthropic" className="size-5" />
@@ -526,7 +703,7 @@ function AssistantSection({
         )}
 
         {/* OpenAI */}
-        {configuredProviders.has("openai") && (
+        {configuredProviders.has("openai") && !configuredProviders.has("vercel") && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
               <img src="/openai-logo.png" alt="OpenAI" className="size-5" />
@@ -534,6 +711,36 @@ function AssistantSection({
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {AVAILABLE_MODELS.filter((m) => m.provider === "openai").map((model) => (
+                <ModelButton
+                  key={model.id}
+                  model={model}
+                  selected={selectedModel === model.id}
+                  disabled={assistant?.status === "PROVISIONING"}
+                  onClick={() => {
+                    if (canChangeModel) {
+                      onModelChange(model.id);
+                    } else if (assistant?.status === "READY") {
+                      onUpdateModel(model.id);
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Vercel AI Gateway */}
+        {configuredProviders.has("vercel") && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="size-5" viewBox="0 0 76 65" fill="currentColor"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" /></svg>
+              <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Vercel AI Gateway</p>
+              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                Budget-friendly
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {AVAILABLE_MODELS.filter((m) => m.provider === "vercel").map((model) => (
                 <ModelButton
                   key={model.id}
                   model={model}
@@ -610,30 +817,23 @@ function AssistantSection({
                       </svg>
                     </div>
                     <span className="text-sm font-medium text-white">WhatsApp</span>
+                    <Badge color="emerald" className="ml-auto">Live</Badge>
                   </div>
                   <div className="px-4 py-4 space-y-3">
                     <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                      Send a message to start chatting with your assistant:
+                      Your assistant is ready on WhatsApp! Send a message to start chatting.
                     </p>
-                    <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
-                      <span className="text-base font-mono font-semibold text-zinc-950 dark:text-white tracking-wide">
-                        +1 (555) 758-9499
-                      </span>
-                    </div>
-                    <a
-                      href={`https://wa.me/15557589499?text=${encodeURIComponent("Hello, are you there?")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] hover:bg-[#20BD5A] px-4 py-2.5 text-sm font-medium text-white transition-colors"
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Only messages from {user?.phone || "your phone number"} are allowed.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={startWhatsAppLogin}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-950/10 dark:border-white/10 hover:bg-zinc-50 dark:hover:bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
                     >
-                      <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                      </svg>
-                      Open WhatsApp
-                    </a>
-                    <p className="text-xs text-center text-zinc-400 dark:text-zinc-500">
-                      Save this number as &quot;YourClaw&quot; for easy access
-                    </p>
+                      <ArrowPathIcon className="size-4" />
+                      Re-link WhatsApp device
+                    </button>
                   </div>
                 </div>
               )}
@@ -641,7 +841,15 @@ function AssistantSection({
           )}
 
           {assistant?.status === "PROVISIONING" && (
-            <Text>Your assistant is being set up. This usually takes 1-2 minutes.</Text>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-zinc-900 dark:border-white" />
+                <Text className="!mt-0">Your assistant is being set up...</Text>
+              </div>
+              {user?.channel === "WHATSAPP" && (
+                <Text className="text-xs !text-zinc-500">Once ready, you&apos;ll scan a QR code to link WhatsApp.</Text>
+              )}
+            </div>
           )}
 
           {assistant?.status === "ERROR" && (
@@ -675,27 +883,40 @@ function AssistantSection({
               </button>
               <button
                 type="button"
-                disabled
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-50"
+                onClick={() => setNewChannel("WHATSAPP")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  newChannel === "WHATSAPP"
+                    ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
               >
                 <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
                 WhatsApp
-                <span className="text-[10px] uppercase tracking-wider font-semibold bg-zinc-200 dark:bg-zinc-600 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">Soon</span>
               </button>
             </div>
 
             {/* Contact input */}
             {newChannel === "WHATSAPP" ? (
-              <>
-                <input
-                  type="tel"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="+15551234567"
-                  className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
-                />
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">Include country code (e.g., +1 for US)</p>
-              </>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">WhatsApp phone number</p>
+                  <input
+                    type="tel"
+                    value={newWhatsAppPhone}
+                    onChange={(e) => setNewWhatsAppPhone(e.target.value.replace(/[^\d+]/g, ""))}
+                    placeholder="+33612345678"
+                    className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                  />
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                    International format (E.164). Only this number can message the bot.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 p-3">
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                    After creating your assistant, you&apos;ll scan a QR code with your WhatsApp app to connect.
+                  </p>
+                </div>
+              </div>
             ) : (
               <div className="space-y-4">
                 {/* Bot token */}
@@ -811,8 +1032,8 @@ function AssistantSection({
             {!editingChannel && (
               <Button plain onClick={() => {
                 setNewChannel((user?.channel as "WHATSAPP" | "TELEGRAM") || "WHATSAPP");
-                setNewPhone(user?.phone || "");
                 setNewTelegramUsername("");
+                setNewWhatsAppPhone(user?.phone || "");
                 setChannelError(null);
                 setEditingChannel(true);
               }}>
@@ -833,8 +1054,48 @@ function AssistantSection({
                   WhatsApp
                 </button>
               </div>
+              {newChannel === "TELEGRAM" && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Bot token</p>
+                    <input
+                      type="text"
+                      value={newBotToken}
+                      onChange={(e) => setNewBotToken(e.target.value.trim())}
+                      placeholder="123456789:ABCdefGhIjKlMnOpQrStUvWxYz"
+                      className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm font-mono text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Your Telegram username</p>
+                    <input
+                      type="text"
+                      value={newTelegramUsername ? (newTelegramUsername.startsWith("@") ? newTelegramUsername : `@${newTelegramUsername}`) : ""}
+                      onChange={(e) => setNewTelegramUsername(e.target.value.replace(/^@+/, "").trim())}
+                      placeholder="@yourusername"
+                      className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                    />
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Only this account will be able to message the bot.</p>
+                  </div>
+                </div>
+              )}
               {newChannel === "WHATSAPP" && (
-                <input type="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+15551234567" className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white" />
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">WhatsApp phone number</p>
+                    <input
+                      type="tel"
+                      value={newWhatsAppPhone}
+                      onChange={(e) => setNewWhatsAppPhone(e.target.value.replace(/[^\d+]/g, ""))}
+                      placeholder="+33612345678"
+                      className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                    />
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      International format (E.164). Only this number can message the bot.
+                    </p>
+                  </div>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">You&apos;ll scan a QR code to connect WhatsApp after switching.</p>
+                </div>
               )}
               {channelError && <p className="text-sm text-red-600 dark:text-red-400">{channelError}</p>}
               <div className="flex gap-2">
@@ -859,6 +1120,121 @@ function AssistantSection({
           )}
         </div>
       )}
+
+      {/* WhatsApp QR Login Dialog */}
+      <Dialog open={whatsappDialogOpen} onClose={closeWhatsAppDialog} size="md">
+        <DialogTitle>
+          {whatsappStatus === "ready" ? "WhatsApp Connected" : whatsappStatus === "connected" || whatsappStatus === "pod_restarting" ? "Linking WhatsApp..." : "Connect WhatsApp"}
+        </DialogTitle>
+        {whatsappStatus !== "ready" && whatsappStatus !== "connected" && whatsappStatus !== "pod_restarting" && (
+          <DialogDescription>
+            Link your WhatsApp account by scanning the QR code below.
+          </DialogDescription>
+        )}
+        <DialogBody>
+          <div className="flex flex-col items-center py-4">
+            {whatsappStatus === "loading" && (
+              <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-white" />
+                <p className="text-sm text-zinc-500">Connecting to server...</p>
+              </div>
+            )}
+
+            {whatsappStatus === "qr_displayed" && qrCode && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-4 bg-white rounded-2xl shadow-sm">
+                  <QRCodeSVG value={qrCode} size={256} />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-medium text-zinc-900 dark:text-white">
+                    Open WhatsApp &gt; Linked Devices &gt; Link a Device
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Point your phone camera at the QR code to scan it.
+                  </p>
+                  <p className="text-xs text-zinc-400">
+                    The QR code refreshes automatically &mdash; keep this window open until you&apos;ve scanned it.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {whatsappStatus === "connected" && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex size-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                  <CheckIcon className="size-8 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-sm font-medium text-green-600">WhatsApp linked successfully!</p>
+                <p className="text-xs text-zinc-500">Restarting your assistant with WhatsApp...</p>
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 w-full">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    You can close the WhatsApp &quot;Linked Devices&quot; screen on your phone now &mdash; the scanning screen may keep running but the link is already done.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {whatsappStatus === "pod_restarting" && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex size-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                  <CheckIcon className="size-8 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-sm font-medium text-green-600">WhatsApp linked successfully!</p>
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-zinc-500" />
+                  <p className="text-sm text-zinc-500">Your assistant is restarting...</p>
+                </div>
+                <p className="text-xs text-zinc-400">This usually takes 15-30 seconds.</p>
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 w-full">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    You can close the WhatsApp &quot;Linked Devices&quot; screen on your phone now &mdash; the scanning screen may keep running but the link is already done.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {whatsappStatus === "ready" && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex size-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                  <CheckIcon className="size-8 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium text-green-600">Your WhatsApp assistant is live!</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Send a message on WhatsApp to start chatting with your AI assistant.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 w-full">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    You can now close this window. Your WhatsApp device scanning screen may still be open &mdash; you can safely close it on your phone too.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {whatsappStatus === "error" && (
+              <div className="flex flex-col items-center gap-3">
+                <XMarkIcon className="size-12 text-red-500" />
+                <p className="text-sm text-red-600">{whatsappError || "Connection failed"}</p>
+                <Button outline onClick={startWhatsAppLogin}>Try Again</Button>
+              </div>
+            )}
+
+            {whatsappStatus === "timeout" && (
+              <div className="flex flex-col items-center gap-3">
+                <ClockIcon className="size-12 text-amber-500" />
+                <p className="text-sm text-amber-600">Connection timed out. Please try again.</p>
+                <Button outline onClick={startWhatsAppLogin}>Try Again</Button>
+              </div>
+            )}
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={closeWhatsAppDialog}>
+            {whatsappStatus === "ready" ? "Done" : "Cancel"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }
@@ -1058,6 +1434,8 @@ function ApiKeysSection({
 
   const hasKey = (provider: string) => apiKeys.some((k) => k.provider === provider);
 
+  const [showVercelTutorial, setShowVercelTutorial] = useState(false);
+
   const providerLinks: Record<string, { url: string; label: string; steps: string }> = {
     ANTHROPIC: {
       url: "https://console.anthropic.com/settings/keys",
@@ -1068,6 +1446,11 @@ function ApiKeysSection({
       url: "https://platform.openai.com/api-keys",
       label: "Get your OpenAI API key",
       steps: "Go to platform.openai.com \u2192 API Keys \u2192 Create new secret key",
+    },
+    VERCEL: {
+      url: "https://vercel.com/ai-gateway",
+      label: "Get your Vercel AI Gateway key",
+      steps: "Go to vercel.com \u2192 AI Gateway \u2192 API Keys \u2192 Add Key",
     },
   };
 
@@ -1117,7 +1500,65 @@ function ApiKeysSection({
         </Text>
       </div>
 
+      <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 p-4">
+        <Text className="text-sm">
+          <strong>Note:</strong> Your API keys are encrypted and stored securely. We never log or share your keys.
+          You need at least one provider key configured to create an assistant.
+        </Text>
+      </div>
+
       <Divider />
+
+      {/* Vercel AI Gateway Tutorial */}
+      <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/20 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <svg className="size-5 text-emerald-600 dark:text-emerald-400" viewBox="0 0 76 65" fill="currentColor"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" /></svg>
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+              Want cheaper models? Try Vercel AI Gateway
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowVercelTutorial(!showVercelTutorial)}
+            className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
+          >
+            {showVercelTutorial ? "Hide guide" : "Show setup guide"}
+          </button>
+        </div>
+        <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-1">
+          Vercel AI Gateway gives you access to <strong>MiniMax, DeepSeek, Kimi</strong> and other models at a fraction of the cost of OpenAI/Anthropic.
+          One key replaces all other provider keys.
+        </p>
+        {showVercelTutorial && (
+          <div className="mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800/50 space-y-3">
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+              Get your Vercel AI Gateway key in 60 seconds
+            </p>
+            <ol className="space-y-2 text-sm text-emerald-800 dark:text-emerald-300">
+              <li className="flex gap-2">
+                <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-emerald-200 dark:bg-emerald-800 text-xs font-bold text-emerald-700 dark:text-emerald-300">1</span>
+                <span>Go to <a href="https://vercel.com/ai-gateway" target="_blank" rel="noopener noreferrer" className="font-semibold underline">vercel.com/ai-gateway</a> and sign in (free account works)</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-emerald-200 dark:bg-emerald-800 text-xs font-bold text-emerald-700 dark:text-emerald-300">2</span>
+                <span>Click <strong>API Keys</strong> in the left sidebar</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-emerald-200 dark:bg-emerald-800 text-xs font-bold text-emerald-700 dark:text-emerald-300">3</span>
+                <span>Click <strong>Add Key</strong> and copy your new API key</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="flex-shrink-0 flex size-5 items-center justify-center rounded-full bg-emerald-200 dark:bg-emerald-800 text-xs font-bold text-emerald-700 dark:text-emerald-300">4</span>
+                <span>Paste it in the <strong>Vercel AI Gateway</strong> field below</span>
+              </li>
+            </ol>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              When you add a Vercel key, it replaces your Anthropic/OpenAI keys for routing -- Vercel handles all providers through a single gateway.
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="space-y-4">
         {API_KEY_PROVIDERS.map((provider) => {
@@ -1198,12 +1639,6 @@ function ApiKeysSection({
         })}
       </div>
 
-      <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 p-4">
-        <Text className="text-sm">
-          <strong>Note:</strong> Your API keys are encrypted and stored securely. We never log or share your keys.
-          You need at least one provider key configured to create an assistant.
-        </Text>
-      </div>
     </div>
   );
 }

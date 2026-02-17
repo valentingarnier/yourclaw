@@ -25,7 +25,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col bg-zinc-50">
       {/* Header */}
       <header className="p-4">
-        <Logo size="md" />
+        <Logo size="md" href="/" />
       </header>
 
       {/* Main content */}

@@ -43,9 +43,11 @@ async def provision(
     anthropic_key: str = "",
     openai_key: str = "",
     google_key: str = "",
+    ai_gateway_key: str = "",
     system_instructions: str | None = None,
     telegram_bot_token: str = "",
     telegram_allow_from: list[str] | None = None,
+    whatsapp_allow_from: list[str] | None = None,
 ) -> dict:
     """Provision an OpenClaw instance via the infra API.
 
@@ -56,6 +58,7 @@ async def provision(
         anthropic_key: Anthropic API key (BYOK).
         openai_key: OpenAI API key (BYOK).
         google_key: Google API key (BYOK).
+        ai_gateway_key: Vercel AI Gateway API key (BYOK).
         system_instructions: Custom system prompt (stored as SOUL.md).
         telegram_bot_token: Per-user Telegram bot token from @BotFather.
 
@@ -78,17 +81,22 @@ async def provision(
         payload["openai_key"] = openai_key
     if google_key:
         payload["google_key"] = google_key
+    if ai_gateway_key:
+        payload["ai_gateway_key"] = ai_gateway_key
     if system_instructions is not None:
         payload["system_instructions"] = system_instructions
     if telegram_bot_token:
         payload["telegram_bot_token"] = telegram_bot_token
     if telegram_allow_from:
         payload["telegram_allow_from"] = telegram_allow_from
+    if whatsapp_allow_from:
+        payload["whatsapp_allow_from"] = whatsapp_allow_from
 
     # Build a redacted copy for debug logging (never log secrets)
+    _secret_fields = ("anthropic_key", "openai_key", "google_key", "ai_gateway_key", "telegram_bot_token")
     debug_payload = {
         k: (
-            f"{v[:4]}...{v[-4:]}" if k in ("anthropic_key", "openai_key", "google_key", "telegram_bot_token") and isinstance(v, str) and len(v) > 8
+            f"{v[:4]}...{v[-4:]}" if k in _secret_fields and isinstance(v, str) and len(v) > 8
             else v
         )
         for k, v in payload.items()

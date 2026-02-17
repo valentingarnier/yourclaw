@@ -14,7 +14,7 @@ export function MarketingFooter() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="mb-4">
-              <Logo size="md" variant="dark" />
+              <Logo size="md" variant="dark" href="/" />
             </div>
             <p className="text-sm text-zinc-500 max-w-xs">
               Your personal AI assistant on WhatsApp. Full AI power, zero setup.

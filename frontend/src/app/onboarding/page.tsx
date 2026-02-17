@@ -9,8 +9,8 @@ import { Logo } from "@/components/logo";
 export default function OnboardingPage() {
   const router = useRouter();
   const [channel, setChannel] = useState<"WHATSAPP" | "TELEGRAM">("TELEGRAM");
-  const [phone, setPhone] = useState("");
   const [telegramUsername, setTelegramUsername] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +21,6 @@ export default function OnboardingPage() {
       if (saved) {
         const data = JSON.parse(saved);
         if (data.channel) setChannel(data.channel);
-        if (data.phone) setPhone(data.phone);
         if (data.telegramUsername) setTelegramUsername(data.telegramUsername);
       }
     } catch {}
@@ -31,17 +30,13 @@ export default function OnboardingPage() {
     e.preventDefault();
     setError(null);
 
-    if (channel === "WHATSAPP") {
-      const phoneRegex = /^\+[1-9]\d{1,14}$/;
-      if (!phoneRegex.test(phone)) {
-        setError("Please enter a valid phone number in E.164 format (e.g., +15551234567)");
-        return;
-      }
-    } else {
-      if (!telegramUsername.trim()) {
-        setError("Please enter your Telegram username");
-        return;
-      }
+    if (channel === "TELEGRAM" && !telegramUsername.trim()) {
+      setError("Please enter your Telegram username");
+      return;
+    }
+    if (channel === "WHATSAPP" && !phone.match(/^\+[1-9]\d{1,14}$/)) {
+      setError("Enter your phone number in international format (e.g. +33612345678)");
+      return;
     }
 
     try {
@@ -63,7 +58,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex flex-col bg-zinc-50">
       {/* Header */}
       <header className="p-4">
-        <Logo size="md" />
+        <Logo size="md" href="/" />
       </header>
 
       {/* Main content */}
@@ -124,20 +119,20 @@ export default function OnboardingPage() {
 
               {channel === "WHATSAPP" ? (
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-zinc-700 mb-2">
+                  <label htmlFor="whatsapp-phone" className="block text-sm font-medium text-zinc-700 mb-2">
                     WhatsApp Phone Number
                   </label>
                   <input
                     type="tel"
-                    id="phone"
+                    id="whatsapp-phone"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+15551234567"
+                    onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ""))}
+                    placeholder="+33612345678"
                     className="w-full px-4 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition text-zinc-900 placeholder:text-zinc-400"
                     required
                   />
                   <p className="mt-2 text-xs text-zinc-500">
-                    Include country code (e.g., +1 for US, +44 for UK)
+                    International format with country code. Only this number will be able to message the bot.
                   </p>
                 </div>
               ) : (
@@ -177,9 +172,9 @@ export default function OnboardingPage() {
           <p className="mt-6 text-center text-xs text-zinc-500">
             {channel === "WHATSAPP" ? (
               <>
-                We&apos;ll only use your number to send messages from your AI assistant.
+                You&apos;ll scan a QR code in the dashboard to link WhatsApp.
                 <br />
-                You can disconnect at any time.
+                You can switch channels at any time.
               </>
             ) : (
               <>

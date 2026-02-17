@@ -7,12 +7,6 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     supabase_service_role_key: str
 
-    # Twilio
-    twilio_account_sid: str = ""
-    twilio_auth_token: str = ""
-    twilio_whatsapp_number: str = ""  # e.g. whatsapp:+14155238886
-    twilio_template_assistant_ready: str = "HXf1d69b40b8b9a82617d8d440ff51f152"  # Content template SID
-
     # Stripe
     stripe_secret_key: str = ""
     stripe_publishable_key: str = ""
@@ -49,10 +43,8 @@ class Settings(BaseSettings):
     yourclaw_api_key: str = ""  # Bearer token for infra API
 
     # Mock Mode
-    mock_twilio: bool = False
     mock_containers: bool = False
     mock_stripe: bool = False
-    skip_twilio_signature: bool = False  # Skip signature validation for dev/ngrok
 
     # Dev Mode
     dev_user_id: str = ""  # Set to bypass auth for testing

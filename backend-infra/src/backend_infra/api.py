@@ -1,7 +1,10 @@
+import logging
 import os
 import uuid
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -13,12 +16,17 @@ from backend_infra.services.config_builder import (
     OpenclawConfig,
     ProviderKeys,
     TelegramChannelConfig,
+    WhatsAppChannelConfig,
 )
+
+logger = logging.getLogger("yourclaw.infra")
 
 app = FastAPI(title="YourClaw Control Plane")
 security = HTTPBearer()
 
 API_KEY = os.environ.get("API_KEY", "")
+GATEWAY_PORT = 18789
+NAMESPACE = "default"
 
 claw = ClawClient()
 
@@ -41,6 +49,7 @@ class ProvisionRequest(BaseModel):
     system_instructions: str | None = None
     telegram_bot_token: str = ""
     telegram_allow_from: list[str] = []
+    whatsapp_allow_from: list[str] = []
 
 
 class DeprovisionRequest(BaseModel):
@@ -63,12 +72,15 @@ def health():
 @app.post("/provision", dependencies=[Depends(verify_key)])
 async def provision(req: ProvisionRequest):
     channels = None
-    if req.telegram_bot_token:
+    if req.telegram_bot_token or req.whatsapp_allow_from:
         channels = ChannelsConfig(
             telegram=TelegramChannelConfig(
                 bot_token=req.telegram_bot_token,
                 allow_from=req.telegram_allow_from,
-            ),
+            ) if req.telegram_bot_token else None,
+            whatsapp=WhatsAppChannelConfig(
+                allow_from=req.whatsapp_allow_from,
+            ) if req.whatsapp_allow_from else None,
         )
 
     config = OpenclawConfig(
@@ -127,6 +139,47 @@ async def get_claw_logs(user_id: str, claw_id: str, tail: int = 100):
     if not logs:
         raise HTTPException(status_code=404, detail="No pods found for this claw")
     return {"user_id": user_id, "claw_id": claw_id, "logs": logs}
+
+
+@app.get("/claws/{user_id}/{claw_id}/whatsapp/login", dependencies=[Depends(verify_key)])
+async def whatsapp_login(user_id: str, claw_id: str):
+    """Proxy SSE stream from pod's WhatsApp login endpoint.
+
+    The OpenClaw pod exposes a WhatsApp QR login flow on its gateway.
+    This endpoint proxies that SSE stream back to the caller.
+    Events: qr (QR code string), connected, error.
+    """
+    status = await claw.get_claw_status(user_id, claw_id)
+    if not status.ready:
+        raise HTTPException(status_code=400, detail="Pod is not ready")
+
+    service_dns = f"claw-{user_id}-{claw_id}.{NAMESPACE}.svc.cluster.local"
+    pod_url = f"http://{service_dns}:{GATEWAY_PORT}/whatsapp/login"
+
+    logger.info(f"Proxying WhatsApp login SSE from {pod_url}")
+
+    async def stream_sse():
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=300, write=10, pool=10)) as client:
+                async with client.stream("GET", pod_url) as resp:
+                    if resp.status_code != 200:
+                        yield f"event: error\ndata: Pod returned {resp.status_code}\n\n"
+                        return
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+        except httpx.ConnectError:
+            yield f"event: error\ndata: Cannot reach pod at {service_dns}\n\n"
+        except httpx.ReadTimeout:
+            yield f"event: error\ndata: Connection timed out\n\n"
+        except Exception as e:
+            logger.error(f"WhatsApp login SSE error: {e}")
+            yield f"event: error\ndata: {e}\n\n"
+
+    return StreamingResponse(
+        stream_sse(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
 
 
 @app.post("/deprovision", dependencies=[Depends(verify_key)])

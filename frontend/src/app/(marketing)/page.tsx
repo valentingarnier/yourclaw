@@ -19,7 +19,7 @@ function OfferBanner() {
 
   useEffect(() => {
     // Set deadline to 48h from first visit (persisted in localStorage)
-    const STORAGE_KEY = "yourclaw_offer_deadline_v3";
+    const STORAGE_KEY = "yourclaw_offer_deadline_v4";
     let deadline = localStorage.getItem(STORAGE_KEY);
     if (!deadline) {
       const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -93,7 +93,6 @@ export default function HomePage() {
 function HeroSection() {
   const [selectedModel, setSelectedModel] = useState<"claude" | "openai">("claude");
   const [channel, setChannel] = useState<"WHATSAPP" | "TELEGRAM">("TELEGRAM");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [telegramUsername, setTelegramUsername] = useState("");
   const [error, setError] = useState("");
 
@@ -112,70 +111,10 @@ function HeroSection() {
     },
   ];
 
-  // Format phone to E.164
-  const formatToE164 = (value: string): string => {
-    const cleaned = value.replace(/[^\d+]/g, "");
-    // If starts with +, keep as-is (international)
-    if (cleaned.startsWith("+")) {
-      return cleaned;
-    }
-    // If 10 digits, assume US and add +1
-    const digits = cleaned.replace(/\D/g, "");
-    if (digits.length === 10) {
-      return "+1" + digits;
-    }
-    // Otherwise return with + prefix if it has enough digits
-    if (digits.length >= 10) {
-      return "+" + digits;
-    }
-    return cleaned;
-  };
-
-  // Display formatting for input
-  const formatPhoneDisplay = (value: string) => {
-    const cleaned = value.replace(/[^\d+]/g, "");
-    if (cleaned && !cleaned.startsWith("+")) {
-      const digits = cleaned.replace(/\D/g, "");
-      if (digits.length <= 10) {
-        const match = digits.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
-        if (match) {
-          let formatted = "";
-          if (match[1]) formatted += `(${match[1]}`;
-          if (match[1]?.length === 3) formatted += ") ";
-          if (match[2]) formatted += match[2];
-          if (match[2]?.length === 3) formatted += "-";
-          if (match[3]) formatted += match[3];
-          return formatted;
-        }
-      }
-    }
-    return cleaned;
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatPhoneDisplay(e.target.value);
-    setPhoneNumber(formatted);
-    setError("");
-  };
-
   const handleSignIn = () => {
     if (channel === "WHATSAPP") {
-      const e164Phone = formatToE164(phoneNumber);
-      const phoneRegex = /^\+[1-9]\d{7,14}$/;
-
-      if (!phoneNumber) {
-        setError("Please enter your WhatsApp number");
-        return;
-      }
-
-      if (!phoneRegex.test(e164Phone)) {
-        setError("Please enter a valid phone number");
-        return;
-      }
-
       localStorage.setItem("yourclaw_signup", JSON.stringify({
         channel: "WHATSAPP",
-        phone: e164Phone,
         model: selectedModel,
       }));
     } else {
@@ -249,7 +188,7 @@ function HeroSection() {
               </div>
               <div className="w-px h-10 bg-white/10" />
               <div className="text-center">
-                <div className="text-2xl font-bold text-white">$29</div>
+                <div className="text-2xl font-bold text-white">$20</div>
                 <div className="text-sm text-zinc-500">/month</div>
               </div>
               <div className="w-px h-10 bg-white/10" />
@@ -310,12 +249,16 @@ function HeroSection() {
                   <div className="flex rounded-xl bg-white/5 border border-white/10 p-1 mb-3">
                     <button
                       type="button"
-                      disabled
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-zinc-600 cursor-not-allowed opacity-50"
+                      onClick={() => { setChannel("WHATSAPP"); setError(""); }}
+                      className={clsx(
+                        "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                        channel === "WHATSAPP"
+                          ? "bg-white/10 text-white"
+                          : "text-zinc-500 hover:text-zinc-300"
+                      )}
                     >
                       <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.352 0-4.55-.676-6.422-1.842l-.448-.292-2.652.889.889-2.652-.292-.448A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
                       WhatsApp
-                      <span className="text-[10px] uppercase tracking-wider font-semibold bg-white/10 text-zinc-400 px-1.5 py-0.5 rounded-full">Soon</span>
                     </button>
                     <button
                       type="button"
@@ -333,24 +276,10 @@ function HeroSection() {
                   </div>
                   {/* Conditional input */}
                   {channel === "WHATSAPP" ? (
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-                        </svg>
-                      </div>
-                      <input
-                        type="tel"
-                        value={phoneNumber}
-                        onChange={handlePhoneChange}
-                        placeholder="+1 555 123 4567"
-                        className={clsx(
-                          "w-full pl-12 pr-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
-                          error
-                            ? "border-red-500/50 focus:ring-red-500/30"
-                            : "border-white/10 focus:ring-emerald-500/30 focus:border-emerald-500/50"
-                        )}
-                      />
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <p className="text-sm text-zinc-400">
+                        You&apos;ll scan a QR code to connect WhatsApp after sign-up.
+                      </p>
                     </div>
                   ) : (
                     <div className="relative">
@@ -375,7 +304,7 @@ function HeroSection() {
                     <p className="mt-2 text-sm text-red-400">{error}</p>
                   )}
                   <p className="mt-2 text-xs text-zinc-500">
-                    {channel === "WHATSAPP" ? "Include country code (e.g., +1 for US)" : "Your Telegram username (without the @)"}
+                    {channel === "WHATSAPP" ? "No phone number needed upfront" : "Your Telegram username (without the @)"}
                   </p>
                 </div>
 
@@ -935,7 +864,7 @@ function PricingSection() {
 
             <div className="text-center mb-8">
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold text-white">$29</span>
+                <span className="text-5xl font-bold text-white">$20</span>
                 <span className="text-xl text-zinc-500">/month</span>
               </div>
               <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -1072,7 +1001,7 @@ function CTASection() {
               <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <p className="mt-4 text-sm text-zinc-500">
-              $29/month • 48h free trial • $10 in credits • Cancel anytime
+              $20/month • 48h free trial • $10 in credits • Cancel anytime
             </p>
           </div>
         </div>

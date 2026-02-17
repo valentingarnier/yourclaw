@@ -37,8 +37,14 @@ class TelegramChannelConfig:
 
 
 @dataclass
+class WhatsAppChannelConfig:
+    allow_from: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ChannelsConfig:
     telegram: TelegramChannelConfig | None = None
+    whatsapp: WhatsAppChannelConfig | None = None
 
 
 DEFAULT_SYSTEM_INSTRUCTIONS = """\
@@ -100,12 +106,13 @@ def build_openclaw_json(config: OpenclawConfig) -> dict:
         "commands": {"restart": True},
     }
 
-    # Channels (Telegram, etc.)
+    # Channels (Telegram, WhatsApp)
     if config.channels:
         channels_dict = {}
+        plugins = {}
         if config.channels.telegram:
             tc = config.channels.telegram
-            tg: dict = {
+            channels_dict["telegram"] = {
                 "enabled": True,
                 "botToken": tc.bot_token,
                 "dmPolicy": "allowlist",
@@ -113,9 +120,17 @@ def build_openclaw_json(config: OpenclawConfig) -> dict:
                 "groupPolicy": "allowlist",
                 "streamMode": "partial",
             }
-            channels_dict["telegram"] = tg
-            # Enable telegram plugin for native channel support
-            result["plugins"] = {"entries": {"telegram": {"enabled": True}}}
+            plugins["telegram"] = {"enabled": True}
+        if config.channels.whatsapp:
+            wc = config.channels.whatsapp
+            channels_dict["whatsapp"] = {
+                "enabled": True,
+                "dmPolicy": "allowlist",
+                "allowFrom": wc.allow_from if wc.allow_from else ["*"],
+            }
+            plugins["whatsapp"] = {"enabled": True}
+        if plugins:
+            result["plugins"] = {"entries": plugins}
         if channels_dict:
             result["channels"] = channels_dict
 
