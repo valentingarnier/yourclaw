@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
 
     # Infra API (separate provisioning service)
-    infra_api_url: str = ""
+    infra_api_url: str = "https://infra.api.yourclaw.dev"
     yourclaw_api_key: str = ""  # Bearer token for infra API
 
     # AI Gateway (Vercel)
