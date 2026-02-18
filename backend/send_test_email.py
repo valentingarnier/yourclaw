@@ -1,8 +1,9 @@
 """Send test announcement email to a single address."""
 
+import os
 import resend
 
-RESEND_API_KEY = "***REMOVED***"
+RESEND_API_KEY = os.environ["RESEND_API_KEY"]
 
 ANNOUNCEMENT_HTML = """\
 <!DOCTYPE html>

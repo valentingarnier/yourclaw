@@ -1,13 +1,14 @@
 """Send announcement email to all production users."""
 
 import json
+import os
 import time
 import requests
 import resend
 
-RESEND_API_KEY = "***REMOVED***"
-SUPABASE_URL = "https://jqqnosjfmotusghzhjvg.supabase.co"
-SUPABASE_SERVICE_KEY = "***REMOVED***"
+RESEND_API_KEY = os.environ["RESEND_API_KEY"]
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://jqqnosjfmotusghzhjvg.supabase.co")
+SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 ANNOUNCEMENT_HTML = """\
 <!DOCTYPE html>

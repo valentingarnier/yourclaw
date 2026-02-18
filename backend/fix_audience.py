@@ -1,13 +1,14 @@
 """Fetch all users from Supabase and add them to Resend General audience."""
 
+import os
 import requests
 import resend
 
-RESEND_API_KEY = "***REMOVED***"
+RESEND_API_KEY = os.environ["RESEND_API_KEY"]
 AUDIENCE_ID = "4cd8abe1-a7ff-4ad8-b45b-ab6b88900efb"
 
-SUPABASE_URL = "https://lmnitiavyljlkdouzlpr.supabase.co"
-SUPABASE_SERVICE_KEY = "***REMOVED***"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://lmnitiavyljlkdouzlpr.supabase.co")
+SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 
 def main():

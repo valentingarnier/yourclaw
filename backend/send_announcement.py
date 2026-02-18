@@ -1,8 +1,9 @@
 """Send announcement broadcast to all Resend audience contacts."""
 
+import os
 import resend
 
-RESEND_API_KEY = "***REMOVED***"
+RESEND_API_KEY = os.environ["RESEND_API_KEY"]
 
 ANNOUNCEMENT_HTML = """\
 <!DOCTYPE html>
