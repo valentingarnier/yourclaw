@@ -21,6 +21,7 @@ export default function OnboardingPage() {
       if (saved) {
         const data = JSON.parse(saved);
         if (data.channel) setChannel(data.channel);
+        if (data.phone) setPhone(data.phone);
         if (data.telegramUsername) setTelegramUsername(data.telegramUsername);
       }
     } catch {}
@@ -120,7 +121,7 @@ export default function OnboardingPage() {
               {channel === "WHATSAPP" ? (
                 <div>
                   <label htmlFor="whatsapp-phone" className="block text-sm font-medium text-zinc-700 mb-2">
-                    WhatsApp Phone Number
+                    Phone number (E.164)
                   </label>
                   <input
                     type="tel"
@@ -131,9 +132,6 @@ export default function OnboardingPage() {
                     className="w-full px-4 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition text-zinc-900 placeholder:text-zinc-400"
                     required
                   />
-                  <p className="mt-2 text-xs text-zinc-500">
-                    International format with country code. Only this number will be able to message the bot.
-                  </p>
                 </div>
               ) : (
                 <div>

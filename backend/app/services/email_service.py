@@ -285,7 +285,7 @@ SUBSCRIPTION_EMAIL_HTML = """
 
     <ul class="checklist">
       <li><span class="check">&#10003;</span> Your own dedicated AI server</li>
-      <li><span class="check">&#10003;</span> 48h free trial + <span class="highlight">$10 in AI credits</span></li>
+      <li><span class="check">&#10003;</span> 48h free trial included</li>
       <li><span class="check">&#10003;</span> All tools unlocked &mdash; web, code, files, browser</li>
       <li><span class="check">&#10003;</span> Available 24/7 on {channel}</li>
     </ul>

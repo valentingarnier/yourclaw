@@ -88,7 +88,6 @@ class CheckoutResponse(BaseModel):
 
 class SubscriptionResponse(BaseModel):
     status: str  # ACTIVE, PAST_DUE, CANCELED
-    credits_remaining_cents: int
     current_period_end: datetime | None = None
     cancel_at_period_end: bool = False
     plan_name: str = "YourClaw Pro"
@@ -112,20 +111,6 @@ class ApiKeyResponse(BaseModel):
     provider: str
     created_at: datetime
     has_key: bool = True  # never expose the actual key
-
-
-# --- Usage ---
-
-class UsageDayResponse(BaseModel):
-    date: str
-    inbound_count: int
-    outbound_count: int
-
-
-class UsageResponse(BaseModel):
-    today: UsageDayResponse
-    credits_used_cents: int
-    credits_total_cents: int
 
 
 # --- Health ---

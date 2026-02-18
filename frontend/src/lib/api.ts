@@ -116,16 +116,6 @@ export interface AssistantResponse {
   updated_at: string | null;
 }
 
-export interface UsageResponse {
-  today: {
-    date: string;
-    inbound_count: number;
-    outbound_count: number;
-  };
-  credits_used_cents: number;
-  credits_total_cents: number;
-}
-
 export interface IntegrationInfo {
   email: string;
   connected_at: string;
@@ -151,7 +141,6 @@ export interface ApiKeyResponse {
 // Subscription
 export interface SubscriptionDetails {
   status: string; // ACTIVE, PAST_DUE, CANCELED
-  credits_remaining_cents: number;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   plan_name: string;
@@ -205,7 +194,6 @@ export const api = {
   }),
   updateAssistant: (model: string) => apiPatch<AssistantResponse>("/api/v1/assistants", { model }),
   deleteAssistant: () => apiDelete("/api/v1/assistants"),
-  getUsage: () => apiGet<UsageResponse>("/api/v1/usage"),
   createCheckout: () => apiPost<{ checkout_url: string }>("/api/v1/checkout"),
 
   // Subscription

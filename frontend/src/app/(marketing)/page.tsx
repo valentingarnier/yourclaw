@@ -49,21 +49,17 @@ function OfferBanner() {
   const pad = (n: number) => n.toString().padStart(2, "0");
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-500">
-      <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm font-medium text-white">
-        <span className="hidden sm:inline px-2 py-0.5 rounded bg-white/20 text-xs font-bold uppercase tracking-wide">
-          Launch deal
-        </span>
+    <div className="fixed top-0 left-0 right-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-white/5">
+      <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-zinc-400">
         <span className="hidden sm:inline">Try OpenClaw free for 48h</span>
-        <span className="sm:hidden">48h free</span>
-        <span className="text-white/80">·</span>
-        <span className="font-mono font-bold text-base tabular-nums">
-          {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}
+        <span className="sm:hidden">48h free trial</span>
+        <span className="text-zinc-600">—</span>
+        <span className="font-mono text-white tabular-nums text-xs">
+          {pad(timeLeft.hours)}h {pad(timeLeft.minutes)}m left
         </span>
-        <span className="hidden sm:inline text-white/80">left</span>
         <Link
           href="/login"
-          className="ml-2 px-3 py-1 rounded-full bg-white text-emerald-700 text-xs font-bold hover:bg-white/90 transition-colors"
+          className="ml-1 px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-400 transition-colors"
         >
           Start free
         </Link>
@@ -91,9 +87,10 @@ export default function HomePage() {
 }
 
 function HeroSection() {
-  const [selectedModel, setSelectedModel] = useState<"claude" | "openai">("claude");
+  const [selectedModel, setSelectedModel] = useState<"claude" | "openai" | "vercel">("claude");
   const [channel, setChannel] = useState<"WHATSAPP" | "TELEGRAM">("TELEGRAM");
   const [telegramUsername, setTelegramUsername] = useState("");
+  const [whatsAppPhone, setWhatsAppPhone] = useState("");
   const [error, setError] = useState("");
 
   const models = [
@@ -109,13 +106,23 @@ function HeroSection() {
       provider: "OpenAI",
       icon: <img src="/openai-logo.png" alt="OpenAI" className="w-5 h-5 object-contain" />,
     },
+    {
+      id: "vercel" as const,
+      name: "MiniMax, DeepSeek…",
+      provider: "Vercel AI Gateway",
+      icon: <svg className="w-5 h-5" viewBox="0 0 76 65" fill="currentColor"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" /></svg>,
+    },
   ];
 
   const handleSignIn = () => {
     if (channel === "WHATSAPP") {
+      if (!whatsAppPhone.match(/^\+[1-9]\d{1,14}$/)) {
+        setError("Enter your phone in E.164 format (e.g. +33612345678)");
+        return;
+      }
       localStorage.setItem("yourclaw_signup", JSON.stringify({
         channel: "WHATSAPP",
-        model: selectedModel,
+        phone: whatsAppPhone,
       }));
     } else {
       const usernameRegex = /^@?[a-zA-Z0-9_]{5,32}$/;
@@ -131,7 +138,6 @@ function HeroSection() {
       localStorage.setItem("yourclaw_signup", JSON.stringify({
         channel: "TELEGRAM",
         telegramUsername: telegramUsername.replace(/^@/, ""),
-        model: selectedModel,
       }));
     }
 
@@ -140,13 +146,8 @@ function HeroSection() {
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-24">
-      {/* Animated gradient orbs */}
-      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[120px] animate-pulse-glow" />
-      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-cyan-500/20 rounded-full blur-[100px] animate-pulse-glow" style={{ animationDelay: "-2s" }} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[150px] animate-pulse-glow" style={{ animationDelay: "-4s" }} />
-
-      {/* Grid pattern */}
-      <div className="absolute inset-0 grid-pattern opacity-50" />
+      {/* Single ambient glow */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-emerald-500/15 rounded-full blur-[150px]" />
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
@@ -164,37 +165,37 @@ function HeroSection() {
             </div>
 
             {/* Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6 animate-reveal" style={{ animationDelay: "0.1s" }}>
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tighter leading-[1.05] mb-6 animate-reveal" style={{ animationDelay: "0.1s" }}>
               <span className="text-white">The easiest way to</span>
               <br />
               <span className="gradient-text text-glow">run OpenClaw</span>
             </h1>
 
             {/* Subheadline */}
-            <p className="text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0 mb-8 animate-reveal" style={{ animationDelay: "0.2s" }}>
-              Get your own OpenClaw instance — fully managed, always on. Send emails, check flights, manage meetings, set up ads. All from WhatsApp or Telegram.
+            <p className="text-lg font-light text-zinc-400 max-w-xl mx-auto lg:mx-0 mb-10 animate-reveal" style={{ animationDelay: "0.2s" }}>
+              Get your own OpenClaw instance — fully managed, always on. Build apps, browse the web, compare prices, set up ads. All from WhatsApp or Telegram.
             </p>
 
             {/* Stats */}
-            <div className="flex items-center justify-center lg:justify-start gap-8 animate-reveal" style={{ animationDelay: "0.3s" }}>
+            <div className="flex items-center justify-center lg:justify-start gap-10 animate-reveal" style={{ animationDelay: "0.3s" }}>
               <div className="text-center">
-                <div className="text-2xl font-bold text-white">1 min</div>
-                <div className="text-sm text-zinc-500">to setup</div>
+                <div className="text-3xl font-extrabold tracking-tight text-white">1 min</div>
+                <div className="text-xs font-medium uppercase tracking-wider text-zinc-500 mt-1">setup</div>
               </div>
-              <div className="w-px h-10 bg-white/10" />
+              <div className="w-px h-12 bg-white/10" />
               <div className="text-center">
-                <div className="text-2xl font-bold text-white">24/7</div>
-                <div className="text-sm text-zinc-500">available</div>
+                <div className="text-3xl font-extrabold tracking-tight text-white">24/7</div>
+                <div className="text-xs font-medium uppercase tracking-wider text-zinc-500 mt-1">available</div>
               </div>
-              <div className="w-px h-10 bg-white/10" />
+              <div className="w-px h-12 bg-white/10" />
               <div className="text-center">
-                <div className="text-2xl font-bold text-white">$20</div>
-                <div className="text-sm text-zinc-500">/month</div>
+                <div className="text-3xl font-extrabold tracking-tight text-white">$20</div>
+                <div className="text-xs font-medium uppercase tracking-wider text-zinc-500 mt-1">per month</div>
               </div>
-              <div className="w-px h-10 bg-white/10" />
+              <div className="w-px h-12 bg-white/10" />
               <div className="text-center">
-                <div className="text-2xl font-bold text-emerald-400">48h</div>
-                <div className="text-sm text-emerald-500/70">free trial</div>
+                <div className="text-3xl font-extrabold tracking-tight text-emerald-400">48h</div>
+                <div className="text-xs font-medium uppercase tracking-wider text-emerald-500/70 mt-1">free trial</div>
               </div>
             </div>
           </div>
@@ -212,7 +213,7 @@ function HeroSection() {
                     <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs text-emerald-400 font-bold">1</span>
                     Choose your AI model
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {models.map((model) => (
                       <button
                         key={model.id}
@@ -276,11 +277,19 @@ function HeroSection() {
                   </div>
                   {/* Conditional input */}
                   {channel === "WHATSAPP" ? (
-                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                      <p className="text-sm text-zinc-400">
-                        You&apos;ll scan a QR code to connect WhatsApp after sign-up.
-                      </p>
-                    </div>
+                    <input
+                      type="tel"
+                      aria-label="Phone number (E.164)"
+                      value={whatsAppPhone}
+                      onChange={(e) => { setWhatsAppPhone(e.target.value.replace(/[^\d+]/g, "")); setError(""); }}
+                      placeholder="+33612345678"
+                      className={clsx(
+                        "w-full px-4 py-3.5 bg-white/5 border rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all",
+                        error
+                          ? "border-red-500/50 focus:ring-red-500/30"
+                          : "border-white/10 focus:ring-emerald-500/30 focus:border-emerald-500/50"
+                      )}
+                    />
                   ) : (
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -304,7 +313,7 @@ function HeroSection() {
                     <p className="mt-2 text-sm text-red-400">{error}</p>
                   )}
                   <p className="mt-2 text-xs text-zinc-500">
-                    {channel === "WHATSAPP" ? "No phone number needed upfront" : "Your Telegram username (without the @)"}
+                    {channel === "WHATSAPP" ? "Phone number in E.164 format" : "Your Telegram username (without the @)"}
                   </p>
                 </div>
 
@@ -352,10 +361,6 @@ function HeroSection() {
         </div>
       </div>
 
-      {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-        <ChevronDownIcon className="w-6 h-6 text-zinc-600" />
-      </div>
     </section>
   );
 }
@@ -371,7 +376,7 @@ function TimeComparisonSection() {
   ];
 
   return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8">
+    <section className="py-32 px-4 sm:px-6 lg:px-8 border-t border-white/5">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
@@ -446,7 +451,7 @@ function UseCasesSection() {
     {
       label: "Automate",
       color: "emerald",
-      items: ["Send emails from WhatsApp", "Reschedule meetings", "Set up Facebook ads", "Monitor competitor prices", "Track your shipments"],
+      items: ["Set up Facebook ads", "Monitor competitor prices", "Track your shipments", "Compare product prices", "Automate web tasks"],
     },
     {
       label: "Research",
@@ -456,7 +461,7 @@ function UseCasesSection() {
     {
       label: "Create",
       color: "purple",
-      items: ["Generate social media visuals", "Build a spreadsheet from data", "Draft a contract", "Create a pitch deck outline", "Edit product photos"],
+      items: ["Build a landing page from chat", "Create a full web app", "Build a spreadsheet from data", "Draft a contract", "Generate social media visuals"],
     },
   ];
 
@@ -470,7 +475,7 @@ function UseCasesSection() {
     <section className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-4">
             What can <span className="gradient-text">YourClaw</span> do for you?
           </h2>
           <p className="text-lg text-zinc-400">
@@ -537,7 +542,7 @@ function FeaturesSection() {
     {
       icon: SparklesIcon,
       title: "Takes real actions",
-      description: "Send emails, check flights, set up ads, manage calendars — not just chat. Your assistant actually does things for you.",
+      description: "Browse the web, create apps, set up ads, compare prices — not just chat. Your assistant actually does things for you.",
       gradient: "from-emerald-500 to-cyan-500",
     },
     {
@@ -561,15 +566,15 @@ function FeaturesSection() {
   ];
 
   return (
-    <section id="features" className="py-24 px-4 sm:px-6 lg:px-8">
+    <section id="features" className="py-32 px-4 sm:px-6 lg:px-8 border-t border-white/5">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-4">
             Not a chatbot.{" "}
             <span className="gradient-text">A real assistant.</span>
           </h2>
-          <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            YourClaw doesn&apos;t just answer questions — it takes action. Browse the web, send emails, manage files, and automate tasks from your chat.
+          <p className="text-lg font-light text-zinc-400 max-w-2xl mx-auto">
+            YourClaw doesn&apos;t just answer questions — it takes action. Browse the web, create apps, manage files, and automate tasks from your chat.
           </p>
         </div>
 
@@ -577,15 +582,16 @@ function FeaturesSection() {
           {features.map((feature, i) => (
             <SpotlightCard
               key={i}
-              className="group relative p-6 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all duration-300 card-hover"
+              className="group relative p-6 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all duration-300 card-hover overflow-hidden"
             >
+              <div className={`absolute top-0 inset-x-6 h-px bg-gradient-to-r ${feature.gradient} opacity-50`} />
               <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                 <feature.icon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">
+              <h3 className="text-lg font-bold text-white mb-2">
                 {feature.title}
               </h3>
-              <p className="text-zinc-400">
+              <p className="text-sm text-zinc-400 font-light leading-relaxed">
                 {feature.description}
               </p>
             </SpotlightCard>
@@ -598,25 +604,25 @@ function FeaturesSection() {
 
 function PhoneDemoSection() {
   return (
-    <section id="demo" className="py-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
+    <section id="demo" className="py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
       <div className="max-w-6xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           {/* Left: Content */}
           <div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-6">
               Get things done{" "}
               <span className="gradient-text">without leaving your chat</span>
             </h2>
-            <p className="text-lg text-zinc-400 mb-8">
+            <p className="text-lg font-light text-zinc-400 mb-8">
               Just text your assistant like you&apos;d text a friend.
               It browses the web, takes actions, and gets things done — all from your chat.
             </p>
 
             <div className="space-y-4">
               {[
-                "\"Check my inbox and summarize important emails\"",
+                "\"Build me a landing page for my new product\"",
                 "\"Find me a flight to NYC under $300 next week\"",
-                "\"Send a follow-up email to the client from yesterday\"",
+                "\"Compare the top 5 CRMs and make a spreadsheet\"",
                 "\"Set up a Facebook ad for my new product\"",
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -656,10 +662,10 @@ function IPhoneMockup() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const conversation = [
-    { type: "user", text: "What's on my calendar today?", time: "9:41 AM" },
-    { type: "ai", text: "You have 3 meetings today:\n\n• 10:00 AM — Team standup\n• 2:00 PM — Design review with Sarah\n• 4:30 PM — Client call with Acme Inc", time: "9:41 AM" },
-    { type: "user", text: "Move the design review to tomorrow at the same time", time: "9:42 AM" },
-    { type: "ai", text: "Done! I've rescheduled your design review with Sarah to tomorrow at 2:00 PM. I've also sent a calendar update to Sarah.", time: "9:42 AM" },
+    { type: "user", text: "Build me a simple landing page for my coffee shop", time: "9:41 AM" },
+    { type: "ai", text: "On it! I'll create a clean one-page site with:\n\n• Hero section with your shop name\n• Menu highlights\n• Location & hours\n• Contact form", time: "9:41 AM" },
+    { type: "user", text: "Add an online ordering section too", time: "9:42 AM" },
+    { type: "ai", text: "Done! I've added an order section with your menu items, quantity selectors, and a checkout flow. Here's the live preview link.", time: "9:42 AM" },
   ];
 
   useEffect(() => {
@@ -677,11 +683,11 @@ function IPhoneMockup() {
 
   return (
     <div className="relative">
-      {/* Glow effect */}
-      <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-purple-500/20 rounded-[4rem] blur-2xl animate-pulse-glow" />
+      {/* Subtle reflection shadow */}
+      <div className="absolute -inset-2 bg-emerald-500/10 rounded-[4rem] blur-3xl" />
 
       {/* iPhone frame */}
-      <div className="relative w-[320px] bg-zinc-950 rounded-[3.5rem] p-3 shadow-2xl border border-white/10">
+      <div className="relative w-[320px] bg-zinc-950 rounded-[3.5rem] p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10">
         {/* Dynamic Island */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[100px] h-[32px] bg-black rounded-full z-20" />
 
@@ -796,13 +802,13 @@ function HowItWorks() {
   ];
 
   return (
-    <section id="how-it-works" className="py-24 px-4 sm:px-6 lg:px-8">
+    <section id="how-it-works" className="py-32 px-4 sm:px-6 lg:px-8 border-t border-white/5">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-4">
             Ready in <span className="gradient-text">1 minute</span>
           </h2>
-          <p className="text-lg text-zinc-400">
+          <p className="text-lg font-light text-zinc-400">
             No technical knowledge required. Seriously.
           </p>
         </div>
@@ -815,14 +821,14 @@ function HowItWorks() {
                 <div className="hidden md:block absolute top-8 left-[60%] w-full h-px bg-gradient-to-r from-zinc-800 to-transparent" />
               )}
 
-              <div className="relative text-center p-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-900 border border-white/10 mb-6 group-hover:border-emerald-500/50 transition-colors">
-                  <span className="text-2xl font-bold gradient-text">{step.number}</span>
+              <div className="relative text-center p-8">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-zinc-900 border border-white/10 mb-6 group-hover:border-emerald-500/30 transition-colors">
+                  <span className="text-lg font-extrabold gradient-text">{step.number}</span>
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">
+                <h3 className="text-lg font-bold text-white mb-3">
                   {step.title}
                 </h3>
-                <p className="text-zinc-400">
+                <p className="text-sm text-zinc-400 font-light leading-relaxed">
                   {step.description}
                 </p>
               </div>
@@ -840,19 +846,19 @@ function PricingSection() {
     "Unlimited messages",
     "Web browsing & real actions",
     "Your own dedicated server",
-    "Email, calendar & file management",
+    "All AI models (Claude, GPT, MiniMax, DeepSeek)",
+    "Create apps & websites from chat",
     "24/7 availability",
-    "All AI models (Claude, GPT)",
   ];
 
   return (
-    <section id="pricing" className="py-24 px-4 sm:px-6 lg:px-8">
+    <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-lg mx-auto">
         <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-4">
             Simple pricing
           </h2>
-          <p className="text-lg text-zinc-400">
+          <p className="text-lg font-light text-zinc-400">
             One plan. Everything included.
           </p>
         </div>
@@ -862,19 +868,19 @@ function PricingSection() {
             {/* Gradient glow */}
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
 
-            <div className="text-center mb-8">
+            <div className="text-center mb-10">
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold text-white">$20</span>
-                <span className="text-xl text-zinc-500">/month</span>
+                <span className="text-6xl font-extrabold tracking-tighter text-white">$20</span>
+                <span className="text-xl font-light text-zinc-500">/month</span>
               </div>
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="text-emerald-400 font-medium text-sm">Limited offer: 48h free + $10 in credits</span>
+                <span className="text-emerald-400 font-medium text-sm">48h free trial included</span>
               </div>
-              <p className="mt-2 text-zinc-500 text-sm">Cancel anytime</p>
+              <p className="mt-2 text-zinc-500 text-sm font-light">Cancel anytime</p>
             </div>
 
             <div className="space-y-3 mb-8">
@@ -909,11 +915,11 @@ function FAQSection() {
   const faqs = [
     {
       question: "What is YourClaw?",
-      answer: "YourClaw gives you a personal AI assistant on WhatsApp or Telegram. Powered by OpenClaw — a powerful open-source AI agent framework — it can send emails, browse the web, manage files, automate tasks, and much more. All through simple chat.",
+      answer: "YourClaw gives you a personal AI assistant on WhatsApp or Telegram. Powered by OpenClaw — a powerful open-source AI agent framework — it can browse the web, create apps, manage files, automate tasks, and much more. All through simple chat.",
     },
     {
       question: "How is this different from ChatGPT?",
-      answer: "ChatGPT answers questions. YourClaw takes action. It can browse the web, send emails, manage files, check flights, set up ads — real tasks, not just conversation. Plus it lives in WhatsApp or Telegram, no app switching needed.",
+      answer: "ChatGPT answers questions. YourClaw takes action. It can browse the web, build apps, manage files, check flights, set up ads — real tasks, not just conversation. Plus it lives in WhatsApp or Telegram, no app switching needed.",
     },
     {
       question: "Do I need to download an app?",
@@ -925,17 +931,17 @@ function FAQSection() {
     },
     {
       question: "What can the assistant actually do?",
-      answer: "Send and check emails, find flights and hotels, set up social media ads, compare products and prices, manage files, generate images, draft contracts, monitor competitors, track shipments — and much more. If you can describe it, it can probably do it.",
+      answer: "Build landing pages and web apps, find flights and hotels, set up social media ads, compare products and prices, manage files, generate images, draft contracts, monitor competitors, track shipments — and much more. If you can describe it, it can probably do it.",
     },
   ];
 
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="py-24 px-4 sm:px-6 lg:px-8">
+    <section id="faq" className="py-32 px-4 sm:px-6 lg:px-8 border-t border-white/5">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-4">
             Frequently asked questions
           </h2>
         </div>
@@ -978,7 +984,7 @@ function FAQSection() {
 
 function CTASection() {
   return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8">
+    <section className="py-32 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="relative rounded-3xl overflow-hidden">
           {/* Background gradients */}
@@ -986,8 +992,8 @@ function CTASection() {
           <div className="absolute inset-0 bg-zinc-900/80 backdrop-blur-sm" />
 
           {/* Content */}
-          <div className="relative px-8 py-16 sm:px-16 text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <div className="relative px-8 py-20 sm:px-16 text-center">
+            <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white mb-6">
               Ready to get started?
             </h2>
             <p className="text-lg text-zinc-400 mb-8 max-w-xl mx-auto">
@@ -1001,7 +1007,7 @@ function CTASection() {
               <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <p className="mt-4 text-sm text-zinc-500">
-              $20/month • 48h free trial • $10 in credits • Cancel anytime
+              $20/month • 48h free trial • BYOK • Cancel anytime
             </p>
           </div>
         </div>

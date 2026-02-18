@@ -62,7 +62,7 @@ async def stripe_webhook(request: Request) -> dict:
 
 
 async def handle_checkout_completed(session: dict) -> None:
-    """Handle successful checkout: create subscription + credits + trigger provisioning."""
+    """Handle successful checkout: create subscription + trigger provisioning."""
     user_id = session["metadata"]["user_id"]
     customer_id = session["customer"]
     subscription_id = session["subscription"]
@@ -75,17 +75,6 @@ async def handle_checkout_completed(session: dict) -> None:
             "stripe_customer_id": customer_id,
             "stripe_subscription_id": subscription_id,
             "status": "ACTIVE",
-        },
-        on_conflict="user_id",
-    )
-
-    # Create credits
-    await db.upsert(
-        "user_credits",
-        {
-            "user_id": user_id,
-            "total_cents": 1000,  # $10
-            "used_cents": 0,
         },
         on_conflict="user_id",
     )
@@ -120,7 +109,7 @@ async def handle_checkout_completed(session: dict) -> None:
 
 
 async def handle_invoice_paid(invoice: dict) -> None:
-    """Handle successful invoice: renew period, reset credits."""
+    """Handle successful invoice: renew period."""
     subscription_id = invoice["subscription"]
 
     # Find subscription by stripe_subscription_id
@@ -141,13 +130,6 @@ async def handle_invoice_paid(invoice: dict) -> None:
             "status": "ACTIVE",
             "updated_at": datetime.utcnow().isoformat(),
         },
-        {"user_id": user_id},
-    )
-
-    # Reset credits
-    await db.update(
-        "user_credits",
-        {"used_cents": 0, "updated_at": datetime.utcnow().isoformat()},
         {"user_id": user_id},
     )
 

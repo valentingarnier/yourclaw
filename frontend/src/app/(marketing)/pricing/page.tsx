@@ -22,7 +22,6 @@ export default function PricingPage() {
       <HeroSection />
       <PricingCards />
       <WhatsIncluded />
-      <CreditsExplainer />
       <FAQSection />
       <CTASection />
     </div>
@@ -56,14 +55,14 @@ function HeroSection() {
 
 function PricingCards() {
   const includedFeatures = [
-    "Unlimited WhatsApp messages",
-    "$10 in AI credits included",
-    "Web browsing & research",
-    "File creation & analysis",
-    "Code execution",
+    "Unlimited messages",
+    "All AI models (Claude, GPT, MiniMax, DeepSeek)",
+    "Web browsing & real actions",
+    "Create apps & websites from chat",
+    "Code execution & file management",
     "24/7 availability",
     "Persistent memory",
-    "Priority support",
+    "Bring your own API key",
   ];
 
   return (
@@ -132,7 +131,7 @@ function PricingCards() {
             <div>
               <h3 className="font-semibold text-white">Power User?</h3>
               <p className="mt-1 text-sm text-zinc-400">
-                Bring your own Anthropic API key for unlimited usage. Same $20/month base price — you just pay Anthropic directly for AI costs.
+                Bring your own API key (Anthropic, OpenAI, or Vercel AI Gateway) for full control. Same $20/month base price — you pay the provider directly for AI costs.
               </p>
             </div>
           </div>
@@ -182,65 +181,11 @@ function WhatsIncluded() {
   );
 }
 
-function CreditsExplainer() {
-  return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-zinc-900/50">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white">
-            How credits work
-          </h2>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="text-center p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 mx-auto flex items-center justify-center mb-4">
-              <span className="text-2xl font-bold text-emerald-400">$10</span>
-            </div>
-            <h3 className="font-semibold text-white mb-2">Monthly credits</h3>
-            <p className="text-sm text-zinc-400">
-              $10 in AI credits included with your subscription. Resets every month.
-            </p>
-          </div>
-
-          <div className="text-center p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
-            <div className="w-16 h-16 rounded-2xl bg-blue-500/20 mx-auto flex items-center justify-center mb-4">
-              <span className="text-2xl font-bold text-blue-400">~100</span>
-            </div>
-            <h3 className="font-semibold text-white mb-2">Daily messages</h3>
-            <p className="text-sm text-zinc-400">
-              Typical usage covers 50-100+ messages per day, depending on complexity.
-            </p>
-          </div>
-
-          <div className="text-center p-6 rounded-2xl bg-zinc-900/50 border border-white/5">
-            <div className="w-16 h-16 rounded-2xl bg-purple-500/20 mx-auto flex items-center justify-center mb-4">
-              <span className="text-2xl font-bold text-purple-400">∞</span>
-            </div>
-            <h3 className="font-semibold text-white mb-2">BYOK unlimited</h3>
-            <p className="text-sm text-zinc-400">
-              Add your own API key for unlimited usage. Pay Anthropic directly.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function FAQSection() {
   const faqs = [
     {
-      question: "What are AI credits?",
-      answer: "AI credits cover the cost of running your assistant. Each interaction uses a small amount of credits based on complexity. Your $20/month includes $10 worth of credits, which covers typical daily usage (50-100+ messages per day).",
-    },
-    {
-      question: "What happens if I run out of credits?",
-      answer: "Your assistant will let you know when credits are low. You can either wait until your next billing cycle when credits reset, or add your own Anthropic API key for unlimited usage.",
-    },
-    {
       question: "How does BYOK (Bring Your Own Key) work?",
-      answer: "Add your own Anthropic API key in your dashboard. Your AI will use your key directly — you pay Anthropic for usage with no credit limits. You still pay the $20/month base for infrastructure and integrations.",
+      answer: "Add your own API key (Anthropic, OpenAI, or Vercel AI Gateway) in your dashboard. Your assistant uses your key directly — you pay the provider for AI usage. The $20/month covers infrastructure, hosting, and integrations.",
     },
     {
       question: "Can I cancel anytime?",

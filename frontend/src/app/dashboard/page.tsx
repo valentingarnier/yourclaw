@@ -886,25 +886,15 @@ function AssistantSection({
 
             {/* Contact input */}
             {newChannel === "WHATSAPP" ? (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">WhatsApp phone number</p>
-                  <input
-                    type="tel"
-                    value={newWhatsAppPhone}
-                    onChange={(e) => setNewWhatsAppPhone(e.target.value.replace(/[^\d+]/g, ""))}
-                    placeholder="+33612345678"
-                    className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
-                  />
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                    International format (E.164). Only this number can message the bot.
-                  </p>
-                </div>
-                <div className="rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 p-3">
-                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                    After creating your assistant, you&apos;ll scan a QR code with your WhatsApp app to connect.
-                  </p>
-                </div>
+              <div>
+                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Phone number (E.164)</p>
+                <input
+                  type="tel"
+                  value={newWhatsAppPhone}
+                  onChange={(e) => setNewWhatsAppPhone(e.target.value.replace(/[^\d+]/g, ""))}
+                  placeholder="+33612345678"
+                  className="w-full rounded-lg border border-zinc-950/10 dark:border-white/10 bg-transparent px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-white"
+                />
               </div>
             ) : (
               <div className="space-y-4">

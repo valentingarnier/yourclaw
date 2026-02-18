@@ -62,14 +62,9 @@ async def get_subscription(user_id: uuid.UUID = Depends(get_current_user)) -> Su
     """Get current subscription status and details."""
 
     sub = await db.select("subscriptions", filters={"user_id": str(user_id)}, single=True)
-    credits = await db.select("user_credits", filters={"user_id": str(user_id)}, single=True)
 
     if not sub:
         raise HTTPException(status_code=404, detail="No subscription found")
-
-    credits_remaining = 0
-    if credits:
-        credits_remaining = credits["total_cents"] - credits["used_cents"]
 
     # Fetch live data from Stripe for cancel_at_period_end and trial info
     cancel_at_period_end = False
@@ -91,7 +86,6 @@ async def get_subscription(user_id: uuid.UUID = Depends(get_current_user)) -> Su
 
     return SubscriptionResponse(
         status=sub["status"],
-        credits_remaining_cents=credits_remaining,
         current_period_end=current_period_end,
         cancel_at_period_end=cancel_at_period_end,
         trial_end=trial_end,
