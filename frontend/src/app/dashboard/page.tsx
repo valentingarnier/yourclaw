@@ -210,7 +210,7 @@ export default function DashboardPage() {
     <Sidebar>
       <SidebarHeader>
         <SidebarSection>
-          <SidebarItem href="/dashboard">
+          <SidebarItem href="/">
             <Logo size="md" showText={true} />
           </SidebarItem>
         </SidebarSection>

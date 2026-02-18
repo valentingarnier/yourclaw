@@ -15,11 +15,11 @@ Telegram & WhatsApp AI assistant. User signs in, picks a channel, pays ($20/mo +
 ```
 /frontend              — Next.js (marketing + app)
   src/app/(marketing)/ — /, /pricing, /privacy, /terms
-  src/app/dashboard/   — Sidebar layout (Assistant, API Keys, Subscription, Usage)
+  src/app/dashboard/   — Sidebar layout (Assistant, API Keys, Tools, Subscription)
   src/lib/api.ts       — API client + types
 /backend/app/          — FastAPI
-  /routers/            — users, assistants, checkout, api_keys, usage, webhooks, oauth
-  /services/           — infra_api, stripe_service, encryption, credits
+  /routers/            — users, assistants, checkout, api_keys, webhooks, oauth
+  /services/           — infra_api, stripe_service, encryption
 /backend-infra/        — Infra API (separate service on k3s control plane)
 ```
 
@@ -61,6 +61,7 @@ Before marking ANY task complete:
 - **Google/Gemini models**: Removed — only Anthropic, OpenAI, and Vercel AI Gateway models are supported
 - **Vercel AI Gateway**: Users can add a Vercel AI Gateway key to access cheap models (MiniMax, DeepSeek, Kimi). When Vercel key is present, only `ai_gateway_key` is sent to provisioning (other provider keys are excluded). Model IDs are passed as-is; OpenClaw routes through the gateway via the `AI_GATEWAY_API_KEY` env var.
 - **Model IDs**: Anthropic/OpenAI use hyphens (`anthropic/claude-sonnet-4-5`). Vercel models use real provider IDs with dots (`minimax/minimax-m2.1`, `deepseek/deepseek-v3.2`, `moonshotai/kimi-k2.5`).
+- **Credits/Usage**: Removed — no credits system, no usage tracking in dashboard. BYOK only.
 - **Two config builders**: `backend-infra/src/backend_infra/services/config_builder.py` is the one used by the infra API (builds actual pod config). `backend/app/services/infra/config_builder.py` is a local copy (used by local claw_client). Both must stay in sync.
 
 ## TODOs
