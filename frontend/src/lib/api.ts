@@ -100,7 +100,7 @@ export const AVAILABLE_MODELS = [
   { id: "anthropic/claude-sonnet-4-5", name: "Claude Sonnet 4.5", description: "Fast and capable", provider: "anthropic", comingSoon: false },
   { id: "anthropic/claude-haiku-4-5", name: "Claude Haiku 4.5", description: "Fastest responses", provider: "anthropic", comingSoon: false },
   // Vercel AI Gateway (cheap alternative models)
-  { id: "minimax/minimax-m2.5", name: "MiniMax M2.5", description: "Fast and budget-friendly", provider: "vercel", comingSoon: false },
+  { id: "minimax/minimax-m2.1", name: "MiniMax M2.1", description: "Fast and budget-friendly", provider: "vercel", comingSoon: false },
   { id: "deepseek/deepseek-v3.2", name: "DeepSeek V3.2", description: "Powerful and very affordable", provider: "vercel", comingSoon: false },
   { id: "moonshotai/kimi-k2.5", name: "Kimi K2.5", description: "Capable and cost-effective", provider: "vercel", comingSoon: false },
 ] as const;

@@ -8,7 +8,6 @@ import {
   api,
   UserProfile,
   AssistantResponse,
-  UsageResponse,
   IntegrationsResponse,
   ApiKeyResponse,
   SubscriptionDetails,
@@ -60,7 +59,6 @@ import {
   ChevronUpIcon,
   SparklesIcon,
   LinkIcon,
-  ChartBarIcon,
   KeyIcon,
   CheckIcon,
   XMarkIcon,
@@ -71,7 +69,7 @@ import {
   CreditCardIcon,
 } from "@heroicons/react/20/solid";
 
-type Section = "assistant" | "tools" | "services" | "usage" | "apikeys" | "subscription";
+type Section = "assistant" | "tools" | "services" | "apikeys" | "subscription";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -80,7 +78,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [assistant, setAssistant] = useState<AssistantResponse | null>(null);
-  const [usage, setUsage] = useState<UsageResponse | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationsResponse | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKeyResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -95,17 +92,15 @@ export default function DashboardPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const [userData, assistantData, usageData, integrationsData, apiKeysData] = await Promise.all([
+      const [userData, assistantData, integrationsData, apiKeysData] = await Promise.all([
         api.getMe(),
         api.getAssistant().catch(() => null),
-        api.getUsage().catch(() => null),
         api.getIntegrations().catch(() => null),
         api.getApiKeys().catch(() => []),
       ]);
 
       setUser(userData);
       setAssistant(assistantData);
-      setUsage(usageData);
       setIntegrations(integrationsData);
       setApiKeys(apiKeysData);
 
@@ -240,10 +235,6 @@ export default function DashboardPage() {
             <LinkIcon />
             <SidebarLabel>Connected Services</SidebarLabel>
           </SidebarItem> */}
-          <SidebarItem current={activeSection === "usage"} onClick={() => setActiveSection("usage")}>
-            <ChartBarIcon />
-            <SidebarLabel>Usage</SidebarLabel>
-          </SidebarItem>
           <SidebarItem current={activeSection === "subscription"} onClick={() => setActiveSection("subscription")}>
             <CreditCardIcon />
             <SidebarLabel>Subscription</SidebarLabel>
@@ -331,8 +322,6 @@ export default function DashboardPage() {
             onDisconnectService={handleDisconnectService}
           />
         )} */}
-
-        {activeSection === "usage" && <UsageSection usage={usage} user={user} />}
 
         {activeSection === "subscription" && <SubscriptionSection />}
       </div>
@@ -1294,64 +1283,6 @@ function ServicesSection({
   );
 }
 
-function UsageSection({ usage, user }: { usage: UsageResponse | null; user: UserProfile | null }) {
-  return (
-    <div className="space-y-8">
-      <div>
-        <Heading>Usage</Heading>
-        <Text className="mt-2">Monitor your assistant usage and remaining credits.</Text>
-      </div>
-
-      <Divider />
-
-      {usage ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-          <UsageCard
-            value={usage.today.inbound_count + usage.today.outbound_count}
-            label="Messages today"
-          />
-          <UsageCard
-            value={`$${((usage.credits_total_cents - usage.credits_used_cents) / 100).toFixed(2)}`}
-            label="Credits remaining"
-          />
-          <UsageCard
-            value={`$${(usage.credits_used_cents / 100).toFixed(2)}`}
-            label="Credits used"
-          />
-        </div>
-      ) : (
-        <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6 text-center">
-          <Text>No usage data available yet.</Text>
-        </div>
-      )}
-
-      <Divider soft />
-
-      <div>
-        <Subheading>Account</Subheading>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Email</p>
-            <p className="text-sm font-medium text-zinc-950 dark:text-white mt-1">{user?.email}</p>
-          </div>
-          <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.channel === "TELEGRAM" ? "Telegram" : "WhatsApp"}</p>
-            <p className="text-sm font-medium text-zinc-950 dark:text-white mt-1">{user?.channel === "TELEGRAM" ? "Telegram" : user?.phone}</p>
-          </div>
-          <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Subscription</p>
-            <div className="mt-1">
-              <Badge color={user?.subscription_status === "ACTIVE" ? "green" : "zinc"}>
-                {user?.subscription_status || "None"}
-              </Badge>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, "zinc" | "amber" | "green" | "red"> = {
     NONE: "zinc",
@@ -1405,15 +1336,6 @@ function ServiceCard({
           {connecting ? "Connecting..." : "Connect"}
         </Button>
       )}
-    </div>
-  );
-}
-
-function UsageCard({ value, label }: { value: string | number; label: string }) {
-  return (
-    <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6 text-center">
-      <p className="text-3xl font-semibold text-zinc-950 dark:text-white">{value}</p>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{label}</p>
     </div>
   );
 }
@@ -2096,23 +2018,6 @@ function SubscriptionSection() {
             )}
           </div>
 
-          {/* Credits Card */}
-          <div className="rounded-lg border border-zinc-950/10 dark:border-white/10 p-6">
-            <Subheading className="mb-4">API Credits</Subheading>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-3xl font-semibold text-zinc-950 dark:text-white">
-                  ${(subscription.credits_remaining_cents / 100).toFixed(2)}
-                </p>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Remaining credits</p>
-              </div>
-              <SparklesIcon className="size-8 text-zinc-400 dark:text-zinc-600" />
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-4">
-              Credits are used when your assistant uses our shared API keys.
-              Add your own API keys to avoid credit usage.
-            </p>
-          </div>
         </div>
       )}
 

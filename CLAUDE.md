@@ -60,7 +60,7 @@ Before marking ANY task complete:
 - **Onboarding**: Only used for initial prefill (channel + phone). Dashboard handles all assistant creation/management. No redirect from dashboard to onboarding.
 - **Google/Gemini models**: Removed — only Anthropic, OpenAI, and Vercel AI Gateway models are supported
 - **Vercel AI Gateway**: Users can add a Vercel AI Gateway key to access cheap models (MiniMax, DeepSeek, Kimi). When Vercel key is present, only `ai_gateway_key` is sent to provisioning (other provider keys are excluded). Model IDs are passed as-is; OpenClaw routes through the gateway via the `AI_GATEWAY_API_KEY` env var.
-- **Model IDs**: Anthropic/OpenAI use hyphens (`anthropic/claude-sonnet-4-5`). Vercel models use real provider IDs with dots (`minimax/minimax-m2.5`, `deepseek/deepseek-v3.2`, `moonshotai/kimi-k2.5`).
+- **Model IDs**: Anthropic/OpenAI use hyphens (`anthropic/claude-sonnet-4-5`). Vercel models use real provider IDs with dots (`minimax/minimax-m2.1`, `deepseek/deepseek-v3.2`, `moonshotai/kimi-k2.5`).
 - **Two config builders**: `backend-infra/src/backend_infra/services/config_builder.py` is the one used by the infra API (builds actual pod config). `backend/app/services/infra/config_builder.py` is a local copy (used by local claw_client). Both must stay in sync.
 
 ## TODOs
