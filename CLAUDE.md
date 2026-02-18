@@ -63,6 +63,9 @@ Before marking ANY task complete:
 - **Model IDs**: Anthropic/OpenAI use hyphens (`anthropic/claude-sonnet-4-5`). Vercel models use real provider IDs with dots (`minimax/minimax-m2.1`, `deepseek/deepseek-v3.2`, `moonshotai/kimi-k2.5`).
 - **Credits/Usage**: Removed — no credits system, no usage tracking in dashboard. BYOK only.
 - **Two config builders**: `backend-infra/src/backend_infra/services/config_builder.py` is the one used by the infra API (builds actual pod config). `backend/app/services/infra/config_builder.py` is a local copy (used by local claw_client). Both must stay in sync.
+- **Email (Resend)**: Domain `yourclaw.dev` verified with DKIM, SPF, DMARC. From address: `hello@yourclaw.dev`. Resend General audience ID: `4cd8abe1-a7ff-4ad8-b45b-ab6b88900efb`. New sign-ups are auto-added to this audience via `add_resend_contact()`. Transactional emails: welcome, subscription, cancellation. For broadcasts, use `send_to_all.py` (fetches users from production Supabase and sends individually — more reliable than Resend Broadcasts API).
+- **Production Supabase**: Project ID `jqqnosjfmotusghzhjvg` (`https://jqqnosjfmotusghzhjvg.supabase.co`). This is separate from the local dev Supabase in `.env`.
+- **DNS**: SPF (`include:resend.com`), DKIM (TXT `resend._domainkey`), DMARC (`p=quarantine`) all configured. No duplicate records.
 
 ## TODOs
 

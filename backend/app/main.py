@@ -124,11 +124,12 @@ async def ensure_dev_user() -> None:
 
 
 # Register routers
-from app.routers import api_keys, assistants, checkout, oauth, users, webhooks
+from app.routers import api_keys, assistants, checkout, feedback, oauth, users, webhooks
 
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(assistants.router, prefix="/api/v1")
 app.include_router(checkout.router, prefix="/api/v1")
 app.include_router(api_keys.router, prefix="/api/v1")
 app.include_router(webhooks.router, prefix="/api/v1")
+app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(oauth.router, prefix="/api/v1")

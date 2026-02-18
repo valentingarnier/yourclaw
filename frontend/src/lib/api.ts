@@ -209,4 +209,7 @@ export const api = {
   getApiKeys: () => apiGet<ApiKeyResponse[]>("/api/v1/api-keys"),
   addApiKey: (provider: string, key: string) => apiPost<ApiKeyResponse>("/api/v1/api-keys", { provider, key }),
   deleteApiKey: (provider: string) => apiDelete(`/api/v1/api-keys?provider=${provider}`),
+
+  // Feedback
+  sendFeedback: (message: string) => apiPost<{ status: string }>("/api/v1/feedback", { message }),
 };

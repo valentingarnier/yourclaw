@@ -142,6 +142,16 @@ class DisconnectResponse(BaseModel):
     service: str
 
 
+# --- Feedback ---
+
+class FeedbackInput(BaseModel):
+    message: str = Field(..., min_length=1, max_length=5000)
+
+
+class FeedbackResponse(BaseModel):
+    status: str = "sent"
+
+
 # --- Errors ---
 
 class ErrorResponse(BaseModel):

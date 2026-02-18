@@ -45,6 +45,7 @@ import {
 import { Navbar, NavbarSpacer } from "@/components/navbar";
 import { Logo } from "@/components/logo";
 import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from "@/components/dialog";
+import { Textarea } from "@/components/textarea";
 
 // Heroicons
 import {
@@ -67,6 +68,7 @@ import {
   PaperAirplaneIcon,
   LightBulbIcon,
   CreditCardIcon,
+  ChatBubbleLeftIcon,
 } from "@heroicons/react/20/solid";
 
 type Section = "assistant" | "tools" | "services" | "apikeys" | "subscription";
@@ -325,6 +327,7 @@ export default function DashboardPage() {
 
         {activeSection === "subscription" && <SubscriptionSection />}
       </div>
+      <FeedbackButton />
     </SidebarLayout>
   );
 }
@@ -2073,4 +2076,77 @@ function SubscriptionBadge({
     CANCELED: "red",
   };
   return <Badge color={colors[status] || "zinc"}>{status}</Badge>;
+}
+
+function FeedbackButton() {
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function handleSend() {
+    if (!message.trim()) return;
+    try {
+      setSending(true);
+      await api.sendFeedback(message.trim());
+      setSent(true);
+      setMessage("");
+      setTimeout(() => {
+        setOpen(false);
+        setSent(false);
+      }, 1500);
+    } catch {
+      setSending(false);
+    }
+  }
+
+  return (
+    <>
+      {/* Floating tab on the right edge */}
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center gap-1.5 rounded-l-lg bg-zinc-800 px-2 py-3 text-xs font-medium text-zinc-300 shadow-lg transition-all hover:bg-zinc-700 hover:text-white hover:pr-3 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+        style={{ writingMode: "vertical-lr" }}
+      >
+        <ChatBubbleLeftIcon className="h-3.5 w-3.5 rotate-90" />
+        Feedback
+      </button>
+
+      <Dialog open={open} onClose={() => { setOpen(false); setSent(false); }} size="sm">
+        <DialogTitle>Send feedback</DialogTitle>
+        <DialogDescription>
+          Bug, idea, or just want to say hi — we read everything.
+        </DialogDescription>
+        <DialogBody>
+          {sent ? (
+            <div className="flex items-center gap-2 py-6 justify-center text-emerald-500">
+              <CheckIcon className="h-5 w-5" />
+              <span className="font-medium">Thanks for your feedback!</span>
+            </div>
+          ) : (
+            <Textarea
+              placeholder="What's on your mind?"
+              rows={4}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              autoFocus
+              resizable={false}
+            />
+          )}
+        </DialogBody>
+        {!sent && (
+          <DialogActions>
+            <Button plain onClick={() => setOpen(false)}>Cancel</Button>
+            <Button
+              color="emerald"
+              onClick={handleSend}
+              disabled={!message.trim() || sending}
+            >
+              {sending ? "Sending…" : "Send"}
+            </Button>
+          </DialogActions>
+        )}
+      </Dialog>
+    </>
+  );
 }

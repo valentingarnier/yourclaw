@@ -556,10 +556,7 @@ async def send_subscription_email(email: str, first_name: str, channel: str) -> 
 
 
 async def add_resend_contact(email: str, first_name: str, last_name: str = "") -> None:
-    """Add a new subscriber as a contact in Resend.
-
-    Contacts are global in Resend and can be assigned to segments later.
-    """
+    """Add a new subscriber as a contact in Resend's General audience."""
     if not settings.resend_api_key:
         return
 
@@ -567,6 +564,7 @@ async def add_resend_contact(email: str, first_name: str, last_name: str = "") -
 
     try:
         resend.Contacts.create({
+            "audience_id": "4cd8abe1-a7ff-4ad8-b45b-ab6b88900efb",
             "email": email,
             "first_name": first_name or "",
             "last_name": last_name or "",
@@ -575,6 +573,38 @@ async def add_resend_contact(email: str, first_name: str, last_name: str = "") -
         logger.info(f"Resend contact created for {email}")
     except Exception as e:
         logger.error(f"Failed to create Resend contact for {email}: {e}")
+
+
+async def send_feedback_email(
+    user_email: str, user_id: str, message: str
+) -> None:
+    """Send user feedback to hello@yourclaw.dev."""
+    if not settings.resend_api_key:
+        logger.warning("RESEND_API_KEY not set, skipping feedback email")
+        return
+
+    resend.api_key = settings.resend_api_key
+
+    try:
+        payload: dict = {
+            "from": "YourClaw Notifications <hello@yourclaw.dev>",
+            "to": ["hello@yourclaw.dev"],
+            "subject": f"Feedback from {user_email}",
+            "html": (
+                f"<h2>New feedback</h2>"
+                f"<p><strong>From:</strong> {user_email}</p>"
+                f"<p><strong>User ID:</strong> {user_id}</p>"
+                f"<hr>"
+                f"<p>{message}</p>"
+            ),
+        }
+        # Only set reply_to for real email addresses (skip dev@localhost etc.)
+        if "@" in user_email and "." in user_email.split("@")[-1]:
+            payload["reply_to"] = user_email
+        resend.Emails.send(payload)
+        logger.info(f"Feedback email sent from {user_email}")
+    except Exception as e:
+        logger.error(f"Failed to send feedback email from {user_email}: {e}")
 
 
 async def send_new_subscriber_notification(
