@@ -91,6 +91,14 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
+  // Fire Meta Pixel Purchase event after Stripe checkout return
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("session_id") && window.fbq) {
+      window.fbq("track", "Purchase", { currency: "USD", value: 20.0 });
+    }
+  }, []);
+
   async function loadData() {
     try {
       setLoading(true);
@@ -128,6 +136,9 @@ export default function DashboardPage() {
       if (message.includes("subscription") || message.includes("402")) {
         try {
           const { checkout_url } = await api.createCheckout();
+          if (typeof window !== "undefined" && window.fbq) {
+            window.fbq("track", "InitiateCheckout");
+          }
           window.location.href = checkout_url;
           return;
         } catch {
