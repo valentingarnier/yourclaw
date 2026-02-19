@@ -38,6 +38,7 @@ export function MarketingHeader() {
             <NavLink href="/#features">Features</NavLink>
             <NavLink href="/#how-it-works">How it works</NavLink>
             <NavLink href="/pricing">Pricing</NavLink>
+            <NavLink href="/blog">Blog</NavLink>
             <NavLink href="/#faq">FAQ</NavLink>
           </div>
 
@@ -88,6 +89,9 @@ export function MarketingHeader() {
             </MobileNavLink>
             <MobileNavLink href="/pricing" onClick={() => setMobileMenuOpen(false)}>
               Pricing
+            </MobileNavLink>
+            <MobileNavLink href="/blog" onClick={() => setMobileMenuOpen(false)}>
+              Blog
             </MobileNavLink>
             <MobileNavLink href="/#faq" onClick={() => setMobileMenuOpen(false)}>
               FAQ

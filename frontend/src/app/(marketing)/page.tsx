@@ -13,6 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { MouseGradient, SpotlightCard, TiltCard } from "@/components/marketing/mouse-gradient";
+import { blogPosts } from "@/lib/blog-data";
 
 function OfferBanner() {
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
@@ -80,6 +81,7 @@ export default function HomePage() {
       <PhoneDemoSection />
       <HowItWorks />
       <PricingSection />
+      <BlogSection />
       <FAQSection />
       <CTASection />
     </div>
@@ -906,6 +908,139 @@ function PricingSection() {
             </p>
           </div>
         </TiltCard>
+      </div>
+    </section>
+  );
+}
+
+function BlogSection() {
+  const categoryColors: Record<string, { bg: string; text: string; border: string }> = {
+    emerald: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20" },
+    cyan: { bg: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-500/20" },
+    purple: { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/20" },
+    orange: { bg: "bg-orange-500/10", text: "text-orange-400", border: "border-orange-500/20" },
+  };
+
+  const gradients = [
+    "from-emerald-500/20 to-cyan-500/20",
+    "from-cyan-500/20 to-blue-500/20",
+    "from-purple-500/20 to-pink-500/20",
+    "from-orange-500/20 to-red-500/20",
+    "from-emerald-500/20 to-purple-500/20",
+  ];
+
+  return (
+    <section className="py-32 px-4 sm:px-6 lg:px-8 border-t border-white/5">
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-4">
+            From the <span className="gradient-text">YourClaw Blog</span>
+          </h2>
+          <p className="text-lg font-light text-zinc-400 max-w-2xl mx-auto">
+            Guides, deep dives, and ideas on getting the most out of your AI assistant.
+          </p>
+        </div>
+
+        {/* Featured post (first one) */}
+        <Link
+          href={`/blog/${blogPosts[0].slug}`}
+          className="group block mb-8"
+        >
+          <SpotlightCard className="relative rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all duration-300 overflow-hidden">
+            <div className="grid md:grid-cols-2 gap-0">
+              <div className={`relative h-48 md:h-full min-h-[240px] bg-gradient-to-br ${gradients[0]}`}>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-6xl sm:text-7xl font-extrabold text-white/5 select-none">01</div>
+                </div>
+                <div className="absolute top-4 left-4">
+                  <span className={clsx(
+                    "px-3 py-1 rounded-full text-xs font-medium border",
+                    categoryColors[blogPosts[0].categoryColor].bg,
+                    categoryColors[blogPosts[0].categoryColor].text,
+                    categoryColors[blogPosts[0].categoryColor].border,
+                  )}>
+                    {blogPosts[0].category}
+                  </span>
+                </div>
+              </div>
+              <div className="p-6 sm:p-8 flex flex-col justify-center">
+                <div className="flex items-center gap-3 text-xs text-zinc-500 mb-3">
+                  <span>{blogPosts[0].date}</span>
+                  <span className="w-1 h-1 rounded-full bg-zinc-700" />
+                  <span>{blogPosts[0].readingTime}</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-3 group-hover:text-emerald-400 transition-colors leading-tight">
+                  {blogPosts[0].title}
+                </h3>
+                <p className="text-sm text-zinc-400 font-light leading-relaxed mb-4">
+                  {blogPosts[0].excerpt}
+                </p>
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-400 group-hover:gap-2.5 transition-all">
+                  Read article
+                  <ArrowRightIcon className="w-4 h-4" />
+                </span>
+              </div>
+            </div>
+          </SpotlightCard>
+        </Link>
+
+        {/* Grid of remaining posts */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {blogPosts.slice(1).map((post, i) => {
+            const colors = categoryColors[post.categoryColor];
+            return (
+              <Link
+                key={post.slug}
+                href={`/blog/${post.slug}`}
+                className="group"
+              >
+                <SpotlightCard className="relative h-full rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all duration-300 overflow-hidden">
+                  <div className={`h-32 bg-gradient-to-br ${gradients[i + 1]} relative`}>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-5xl font-extrabold text-white/5 select-none">
+                        {String(i + 2).padStart(2, "0")}
+                      </div>
+                    </div>
+                    <div className="absolute top-3 left-3">
+                      <span className={clsx(
+                        "px-2.5 py-0.5 rounded-full text-[10px] font-medium border",
+                        colors.bg,
+                        colors.text,
+                        colors.border,
+                      )}>
+                        {post.category}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-500 mb-2">
+                      <span>{post.date}</span>
+                      <span className="w-1 h-1 rounded-full bg-zinc-700" />
+                      <span>{post.readingTime}</span>
+                    </div>
+                    <h3 className="text-sm font-bold text-white mb-2 group-hover:text-emerald-400 transition-colors leading-snug line-clamp-3">
+                      {post.title}
+                    </h3>
+                    <p className="text-xs text-zinc-500 font-light leading-relaxed line-clamp-2">
+                      {post.excerpt}
+                    </p>
+                  </div>
+                </SpotlightCard>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* View all link */}
+        <div className="text-center mt-10">
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+          >
+            View all articles
+            <ArrowRightIcon className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
     </section>
   );
