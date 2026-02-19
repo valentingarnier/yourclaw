@@ -34,9 +34,7 @@ _PROVIDER_KEY_MAP = {
 _MODEL_PREFIX_TO_PROVIDER = {
     "anthropic": "ANTHROPIC",
     "openai": "OPENAI",
-    "deepseek": "VERCEL",
     "minimax": "VERCEL",
-    "moonshotai": "VERCEL",
 }
 
 

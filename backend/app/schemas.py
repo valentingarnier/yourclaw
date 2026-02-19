@@ -46,9 +46,7 @@ AVAILABLE_MODELS = [
     "anthropic/claude-sonnet-4-5",
     "anthropic/claude-haiku-4-5",
     # Vercel AI Gateway (cheap alternative models)
-    "deepseek/deepseek-v3",
     "minimax/minimax-m2.1",
-    "moonshotai/kimi-k2.5",
 ]
 DEFAULT_MODEL = "openai/gpt-5.2-codex"
 

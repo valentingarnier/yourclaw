@@ -1461,7 +1461,7 @@ function ApiKeysSection({
           </button>
         </div>
         <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-1">
-          Vercel AI Gateway gives you access to <strong>MiniMax, DeepSeek, Kimi</strong> and other models at a fraction of the cost of OpenAI/Anthropic.
+          Vercel AI Gateway gives you access to <strong>MiniMax</strong> and other models at a fraction of the cost of OpenAI/Anthropic.
           One key replaces all other provider keys.
         </p>
         {showVercelTutorial && (

@@ -108,7 +108,7 @@ function HeroSection() {
     },
     {
       id: "vercel" as const,
-      name: "MiniMax, DeepSeek…",
+      name: "MiniMax",
       provider: "Vercel AI Gateway",
       icon: <svg className="w-5 h-5" viewBox="0 0 76 65" fill="currentColor"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" /></svg>,
     },
@@ -846,7 +846,7 @@ function PricingSection() {
     "Unlimited messages",
     "Web browsing & real actions",
     "Your own dedicated server",
-    "All AI models (Claude, GPT, MiniMax, DeepSeek)",
+    "All AI models (Claude, GPT, MiniMax)",
     "Create apps & websites from chat",
     "24/7 availability",
   ];

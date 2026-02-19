@@ -31,28 +31,18 @@ WELCOME_EMAIL_HTML = """
       padding: 40px 24px;
     }}
     .logo-row {{
-      display: flex;
-      align-items: center;
-      gap: 10px;
       margin-bottom: 32px;
     }}
-    .logo-icon {{
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #10B981, #06B6D4);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      font-weight: 800;
-      color: #000000;
+    .logo-row table {{
+      border-collapse: collapse;
     }}
     .logo-text {{
       font-size: 22px;
       font-weight: 700;
       color: #ffffff;
       letter-spacing: -0.5px;
+      padding-left: 10px;
+      vertical-align: middle;
     }}
     h1 {{
       font-size: 22px;
@@ -120,23 +110,30 @@ WELCOME_EMAIL_HTML = """
 <body>
   <div class="container">
     <div class="logo-row">
-      <div class="logo-icon">Y</div>
-      <div class="logo-text">YourClaw</div>
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="width:32px; height:32px;">
+            <img src="https://yourclaw.dev/lobster-logo.png" alt="YourClaw" width="32" height="32" style="display:block; border:0; border-radius:8px;" />
+          </td>
+          <td class="logo-text">YourClaw</td>
+        </tr>
+      </table>
     </div>
 
     <h1>Welcome to YourClaw, {first_name}!</h1>
 
-    <p>Thanks for signing up. You're one step away from having your own AI assistant &mdash; powered by <span class="highlight">OpenClaw</span>, available right on {channel}.</p>
+    <p>Thanks for signing up. You're one step away from having your own AI assistant &mdash; powered by <span class="highlight">OpenClaw</span>, available on <span class="highlight">Telegram</span> or <span class="highlight">WhatsApp</span>.</p>
 
     <div class="features">
       <h2>What your assistant can do</h2>
+      <div class="feature"><span class="feature-icon">&#9679;</span> Works on Telegram &amp; WhatsApp &mdash; your choice</div>
       <div class="feature"><span class="feature-icon">&#9679;</span> Browse the web and fetch live information</div>
       <div class="feature"><span class="feature-icon">&#9679;</span> Execute code, create files, automate tasks</div>
-      <div class="feature"><span class="feature-icon">&#9679;</span> Remember context across conversations</div>
-      <div class="feature"><span class="feature-icon">&#9679;</span> Use all OpenClaw tools &mdash; no restrictions</div>
+      <div class="feature"><span class="feature-icon">&#9679;</span> Bring your own API keys &mdash; use Claude, GPT, DeepSeek, and more</div>
+      <div class="feature"><span class="feature-icon">&#9679;</span> Switch models anytime from the dashboard</div>
     </div>
 
-    <p>To get started, head to your dashboard and subscribe. Your assistant will be ready in under a minute.</p>
+    <p>To get started, head to your dashboard, add your API key, and subscribe. Your assistant will be ready in under a minute.</p>
 
     <a href="{dashboard_url}" class="cta">Go to Dashboard</a>
 
@@ -499,12 +496,10 @@ async def send_welcome_email(email: str, first_name: str, channel: str) -> None:
 
     resend.api_key = settings.resend_api_key
 
-    channel_display = "WhatsApp" if channel == "WHATSAPP" else "Telegram"
     dashboard_url = f"{settings.app_url}/dashboard"
 
     html = WELCOME_EMAIL_HTML.format(
         first_name=first_name or "there",
-        channel=channel_display,
         dashboard_url=dashboard_url,
     )
 

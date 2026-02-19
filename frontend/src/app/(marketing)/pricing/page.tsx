@@ -56,7 +56,7 @@ function HeroSection() {
 function PricingCards() {
   const includedFeatures = [
     "Unlimited messages",
-    "All AI models (Claude, GPT, MiniMax, DeepSeek)",
+    "All AI models (Claude, GPT, MiniMax)",
     "Web browsing & real actions",
     "Create apps & websites from chat",
     "Code execution & file management",

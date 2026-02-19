@@ -8,7 +8,7 @@ Telegram & WhatsApp AI assistant. User signs in, picks a channel, pays ($20/mo +
 - **Backend**: FastAPI + Supabase (auth + Postgres)
 - **Infra**: k3s on Hetzner, one pod per user, separate infra API
 - **Payments**: Stripe subscription
-- **LLM providers**: Anthropic, OpenAI, Vercel AI Gateway (MiniMax, DeepSeek, Kimi). BYOK only (users must provide their own API keys).
+- **LLM providers**: Anthropic, OpenAI, Vercel AI Gateway (MiniMax). BYOK only (users must provide their own API keys).
 
 ## Repo Structure
 
@@ -59,8 +59,8 @@ Before marking ANY task complete:
 - **WhatsApp flow**: User enters phone (E.164) on the dashboard (not onboarding). Pod is provisioned with `whatsapp_allow_from=[phone]`. When pod becomes READY, QR login dialog auto-opens. SSE proxy (`/api/whatsapp-login` → infra API → pod `:18789/whatsapp/login`) streams QR codes. After scan, `connected` event fires → pod restarts → dashboard polls until READY → dialog auto-closes. No Twilio.
 - **Onboarding**: Only used for initial prefill (channel + phone). Dashboard handles all assistant creation/management. No redirect from dashboard to onboarding.
 - **Google/Gemini models**: Removed — only Anthropic, OpenAI, and Vercel AI Gateway models are supported
-- **Vercel AI Gateway**: Users can add a Vercel AI Gateway key to access cheap models (MiniMax, DeepSeek, Kimi). When Vercel key is present, only `ai_gateway_key` is sent to provisioning (other provider keys are excluded). Model IDs are passed as-is; OpenClaw routes through the gateway via the `AI_GATEWAY_API_KEY` env var.
-- **Model IDs**: Anthropic/OpenAI use hyphens (`anthropic/claude-sonnet-4-5`). Vercel models use real provider IDs with dots (`minimax/minimax-m2.1`, `deepseek/deepseek-v3`, `moonshotai/kimi-k2.5`).
+- **Vercel AI Gateway**: Users can add a Vercel AI Gateway key to access MiniMax. When Vercel key is present, only `ai_gateway_key` is sent to provisioning (other provider keys are excluded). Model IDs are passed as-is; OpenClaw routes through the gateway via the `AI_GATEWAY_API_KEY` env var.
+- **Model IDs**: Anthropic/OpenAI use hyphens (`anthropic/claude-sonnet-4-5`). Vercel models use real provider IDs with dots (`minimax/minimax-m2.1`).
 - **Credits/Usage**: Removed — no credits system, no usage tracking in dashboard. BYOK only.
 - **Two config builders**: `backend-infra/src/backend_infra/services/config_builder.py` is the one used by the infra API (builds actual pod config). `backend/app/services/infra/config_builder.py` is a local copy (used by local claw_client). Both must stay in sync.
 - **Email (Resend)**: Domain `yourclaw.dev` verified with DKIM, SPF, DMARC. From address: `hello@yourclaw.dev`. Resend General audience ID: `4cd8abe1-a7ff-4ad8-b45b-ab6b88900efb`. New sign-ups are auto-added to this audience via `add_resend_contact()`. Transactional emails: welcome, subscription, cancellation. For broadcasts, use `send_to_all.py` (fetches users from production Supabase and sends individually — more reliable than Resend Broadcasts API).
