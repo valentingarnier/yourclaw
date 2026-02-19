@@ -55,7 +55,6 @@ import {
   ArrowPathIcon,
   TrashIcon,
   PlusIcon,
-  Cog6ToothIcon,
   ArrowRightStartOnRectangleIcon,
   ChevronUpIcon,
   SparklesIcon,
@@ -268,11 +267,6 @@ export default function DashboardPage() {
             <ChevronUpIcon className="ml-auto size-4" />
           </DropdownButton>
           <DropdownMenu anchor="top start" className="min-w-64">
-            <DropdownItem href="/settings">
-              <Cog6ToothIcon />
-              <DropdownLabel>Settings</DropdownLabel>
-            </DropdownItem>
-            <DropdownDivider />
             <DropdownItem onClick={handleSignOut}>
               <ArrowRightStartOnRectangleIcon />
               <DropdownLabel>Sign out</DropdownLabel>
@@ -604,7 +598,21 @@ function AssistantSection({
       });
       onRefresh();
     } catch (err) {
-      setChannelError(err instanceof Error ? err.message : "Failed to save channel");
+      const message = err instanceof Error ? err.message : "Failed to save channel";
+      if (message.includes("subscription") || message.includes("402")) {
+        try {
+          const { checkout_url } = await api.createCheckout();
+          if (typeof window !== "undefined" && window.fbq) {
+            window.fbq("track", "InitiateCheckout");
+          }
+          window.location.href = checkout_url;
+          return;
+        } catch {
+          setChannelError("Failed to start checkout");
+          return;
+        }
+      }
+      setChannelError(message);
     } finally {
       setChannelSaving(false);
     }
@@ -1917,6 +1925,24 @@ function SubscriptionSection() {
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             Subscribe to get your own AI assistant.
           </p>
+          <Button
+            className="mt-4"
+            color="orange"
+            onClick={async () => {
+              try {
+                setError(null);
+                const { checkout_url } = await api.createCheckout();
+                if (typeof window !== "undefined" && window.fbq) {
+                  window.fbq("track", "InitiateCheckout");
+                }
+                window.location.href = checkout_url;
+              } catch {
+                setError("Failed to start checkout. Please try again.");
+              }
+            }}
+          >
+            Subscribe Now
+          </Button>
         </div>
       ) : (
         <div className="space-y-6">

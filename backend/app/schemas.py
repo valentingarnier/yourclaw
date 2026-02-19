@@ -46,7 +46,7 @@ AVAILABLE_MODELS = [
     "anthropic/claude-sonnet-4-5",
     "anthropic/claude-haiku-4-5",
     # Vercel AI Gateway (cheap alternative models)
-    "deepseek/deepseek-v3.2",
+    "deepseek/deepseek-v3",
     "minimax/minimax-m2.1",
     "moonshotai/kimi-k2.5",
 ]
