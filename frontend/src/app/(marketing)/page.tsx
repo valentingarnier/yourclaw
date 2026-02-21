@@ -19,15 +19,11 @@ function OfferBanner() {
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
-    // Set deadline to 48h from first visit (persisted in localStorage)
+    // Reset deadline to 48h from now on every visit
     const STORAGE_KEY = "yourclaw_offer_deadline_v4";
-    let deadline = localStorage.getItem(STORAGE_KEY);
-    if (!deadline) {
-      const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
-      deadline = d.toISOString();
-      localStorage.setItem(STORAGE_KEY, deadline);
-    }
-    const deadlineDate = new Date(deadline);
+    const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    localStorage.setItem(STORAGE_KEY, d.toISOString());
+    const deadlineDate = d;
 
     const tick = () => {
       const now = new Date();
